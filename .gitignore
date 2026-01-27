@@ -1,0 +1,12 @@
+# Entornos
+.env
+__pycache__/
+*.pyc
+node_modules/
+
+# Docker
+*.log
+
+# Mongo
+mongodb/data/*
+
