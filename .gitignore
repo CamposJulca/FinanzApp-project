@@ -10,3 +10,18 @@ node_modules/
 # Mongo
 mongodb/data/*
 
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Django
+db.sqlite3
+*.log
+
+# Node
+node_modules/
+package-lock.json
+
+# Docker
+*.pid
