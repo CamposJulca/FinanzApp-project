@@ -1,0 +1,38 @@
+.container {
+  padding: 2rem;
+  background: #111;
+  color: #eee;
+  min-height: 100vh;
+}
+
+.kpis {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.kpi {
+  padding: 1rem;
+  border: 1px solid #444;
+  border-radius: 6px;
+  min-width: 160px;
+  text-align: center;
+}
+
+.ingreso { color: #4caf50; }
+.egreso { color: #f44336; }
+.balance { color: #03a9f4; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #444;
+  padding: 0.5rem;
+}
+
+th {
+  background: #222;
+}
