@@ -1,39 +1,19 @@
-version: "3.9"
-
 services:
   backend:
     build: ./backend
     container_name: finanzapp-backend
     working_dir: /app
     volumes:
+      # Código backend
       - ./backend:/app
+      # Build del frontend (Vite)
+      - ./frontend/dist:/app/frontend/dist
     ports:
       - "8090:8090"
     env_file:
       - .env
-
-
-
-
-  frontend:
-    image: node:20-alpine
-    container_name: finanzapp-frontend
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    command: >
-      sh -c "
-      npm install &&
-      npm run dev -- --host 0.0.0.0 --port 8209
-      "
-    ports:
-      - "8209:8209"
-    depends_on:
-      - backend
-    networks:
-      - finanzapp-net
+    restart: unless-stopped
 
 networks:
-  finanzapp-net:
+  default:
     driver: bridge
-

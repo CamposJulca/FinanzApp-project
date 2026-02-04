@@ -66,18 +66,19 @@ ROOT_URLCONF = 'finanzapp.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "frontend" / "dist"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
+
 
 WSGI_APPLICATION = 'finanzapp.wsgi.application'
 
@@ -127,8 +128,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+# Vite sirve los archivos desde /assets
+STATIC_URL = "/assets/"
 
-CORS_ALLOWED_ORIGINS = [
-    "https://finanzapp-dev.ngrok.io",
+STATICFILES_DIRS = [
+    BASE_DIR / "frontend" / "dist" / "assets",
 ]
+
+
+
+CORS_ALLOW_ALL_ORIGINS = True
+
