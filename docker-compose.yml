@@ -4,15 +4,15 @@ services:
     container_name: finanzapp-backend
     working_dir: /app
     volumes:
-      # Código backend
       - ./backend:/app
-      # Build del frontend (Vite)
       - ./frontend/dist:/app/frontend/dist
+      - ./templates:/app/templates   # 👈 CLAVE
     ports:
       - "8090:8090"
     env_file:
       - .env
     restart: unless-stopped
+
 
 networks:
   default:

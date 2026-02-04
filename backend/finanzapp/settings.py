@@ -59,7 +59,14 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+
+    # 👇 AÑADIR AL FINAL
+    "finanzapp.middleware.LoginRequiredMiddleware",
 ]
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login/"
 
 
 ROOT_URLCONF = 'finanzapp.urls'
@@ -67,7 +74,10 @@ ROOT_URLCONF = 'finanzapp.urls'
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "frontend" / "dist"],
+        "DIRS": [
+            BASE_DIR / "frontend" / "dist",   # 👈 index.html vive aquí
+            BASE_DIR / "templates",            # login, admin, etc.
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -137,5 +147,8 @@ STATICFILES_DIRS = [
 
 
 
-CORS_ALLOW_ALL_ORIGINS = True
+CSRF_TRUSTED_ORIGINS = [
+    "https://finanzapp.ngrok.io",
+    "https://finanzapp-dev.ngrok.io",
+]
 

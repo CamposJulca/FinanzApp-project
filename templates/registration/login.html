@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Login | FinanzApp</title>
+    <style>
+        body {
+            background: #0f0f0f;
+            color: #fff;
+            font-family: system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        form {
+            background: #111;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 320px;
+        }
+        h1 {
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            margin-bottom: 1rem;
+            padding: 0.6rem;
+            background: #222;
+            border: 1px solid #333;
+            color: #fff;
+        }
+        button {
+            width: 100%;
+            padding: 0.6rem;
+            background: #22c55e;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <form method="post">
+        {% csrf_token %}
+        <h1>FinanzApp</h1>
+        {{ form.username }}
+        {{ form.password }}
+        <button type="submit">Ingresar</button>
+    </form>
+</body>
+</html>

@@ -3,18 +3,23 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib.auth import views as auth_views
+
 
 urlpatterns = [
-    # Django Admin
     path("admin/", admin.site.urls),
 
-    # APIs
+    # Auth
+    path("login/", auth_views.LoginView.as_view(), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+
+    # API
     path("api/", include("transactions.urls")),
 
-    # Frontend React (Vite build)
-    # Captura / y cualquier ruta no-API y no-admin
+    # Frontend
     path("", TemplateView.as_view(template_name="index.html")),
 ]
+
 
 # Servir archivos estáticos de Vite en desarrollo
 # (/assets/*)
