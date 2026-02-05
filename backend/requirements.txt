@@ -2,3 +2,7 @@ django>=5.0
 djangorestframework
 pymongo
 django-cors-headers
+
+Django>=6.0
+djangorestframework
+psycopg[binary]>=3.1

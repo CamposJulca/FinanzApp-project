@@ -1,14 +1,20 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: finanzapp-postgres
-    restart: unless-stopped
     environment:
       POSTGRES_DB: finanzapp_db
       POSTGRES_USER: finanzapp_user
       POSTGRES_PASSWORD: finanzapp_pass
+    ports:
+      - "5433:5432"
     volumes:
       - ./data:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d
-    ports:
-      - "5432:5432"
+    networks:
+      - finanzapp-net
+
+networks:
+  finanzapp-net:
+    external: true
+

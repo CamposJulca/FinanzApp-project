@@ -6,14 +6,16 @@ services:
     volumes:
       - ./backend:/app
       - ./frontend/dist:/app/frontend/dist
-      - ./templates:/app/templates   # 👈 CLAVE
+      - ./templates:/app/templates
     ports:
       - "8090:8090"
     env_file:
       - .env
     restart: unless-stopped
-
+    networks:
+      - finanzapp-net
 
 networks:
-  default:
-    driver: bridge
+  finanzapp-net:
+    external: true
+
