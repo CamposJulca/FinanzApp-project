@@ -25,3 +25,5 @@ package-lock.json
 
 # Docker
 *.pid
+
+infra/postgres/data/
