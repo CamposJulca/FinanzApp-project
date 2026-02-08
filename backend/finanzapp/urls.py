@@ -14,7 +14,8 @@ urlpatterns = [
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 
     # API
-    path("api/", include("transactions.urls")),
+    path("api/transactions/", include("transactions.urls")),
+
 
     # Frontend
     path("", TemplateView.as_view(template_name="index.html")),
