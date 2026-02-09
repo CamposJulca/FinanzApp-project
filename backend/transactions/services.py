@@ -1,33 +1,42 @@
-from pymongo import MongoClient
-from datetime import datetime
-import os
+from core.models import Transaction
 
 
-def _get_db():
-    client = MongoClient(
-        host=os.getenv("MONGO_HOST"),
-        port=int(os.getenv("MONGO_PORT")),
+def get_transactions(user):
+    qs = (
+        Transaction.objects
+        .filter(user=user)
+        .order_by("-created_at")
     )
-    return client[os.getenv("MONGO_DB")]
+
+    return [
+        {
+            "id": t.id,
+            "description": t.description,
+            "amount": float(t.amount),
+            "created_at": t.created_at.strftime("%Y-%m-%d"),
+        }
+        for t in qs
+    ]
 
 
-def get_transactions():
-    db = _get_db()
-    return list(db.transactions.find({}, {"_id": 0}))
+def create_transaction(data: dict, user):
+    amount = float(data["amount"])
 
+    # Si viene marcado como egreso, lo guardamos negativo
+    if data.get("type") == "E":
+        amount = -abs(amount)
 
-def create_transaction(data: dict):
-    db = _get_db()
+    tx = Transaction.objects.create(
+        user=user,
+        account=user.accounts.first(),  # cuenta por defecto
+        amount=amount,
+        description=data.get("description", ""),
+        created_at=data.get("created_at"),
+    )
 
-    transaction = {
-        "description": data["description"],
-        "type": data["type"],
-        "amount": float(data["amount"]),
-        "date": data["date"],
-        "has_receipt": bool(data.get("has_receipt", False)),
-        "source": data.get("source", "manual"),
-        "created_at": datetime.utcnow().isoformat()
+    return {
+        "id": tx.id,
+        "description": tx.description,
+        "amount": float(tx.amount),
+        "created_at": tx.created_at.strftime("%Y-%m-%d"),
     }
-
-    db.transactions.insert_one(transaction)
-    return transaction
