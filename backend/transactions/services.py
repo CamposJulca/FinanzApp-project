@@ -1,4 +1,32 @@
 from core.models import Transaction
+from django.db.models import Sum
+from core.models import Account, Transaction
+
+
+from django.db.models import Sum
+from core.models import Account, Transaction
+
+
+def get_account_balances(user):
+    accounts = (
+        Account.objects
+        .filter(user=user)
+        .annotate(
+            calculated_balance=Sum("transactions__amount")
+        )
+    )
+
+    result = []
+    for acc in accounts:
+        result.append({
+            "account_id": acc.id,
+            "account_name": acc.name,
+            "balance": float(acc.calculated_balance or 0),
+        })
+
+    return result
+
+
 
 
 def get_transactions(user):
