@@ -1,8 +1,8 @@
 from django.urls import path
-from .views import me, summary, TransactionListView
+from .views import me, summary, account_balances
 
 urlpatterns = [
     path("me/", me),
     path("summary/", summary),
-    path("", TransactionListView.as_view()),  # /api/transactions/
+    path("accounts/", account_balances),
 ]
