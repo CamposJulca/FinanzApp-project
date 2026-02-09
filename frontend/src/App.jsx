@@ -1,61 +1,39 @@
 import { useEffect, useState } from "react";
 import { TransactionForm } from "./components/TransactionForm";
-import { fetchTransactions } from "./services/transactionsApi";
+import {
+  fetchTransactions,
+  fetchSummary,
+} from "./services/transactionsApi";
 
 function App() {
   const [transactions, setTransactions] = useState([]);
+  const [summary, setSummary] = useState({
+    ingresos: 0,
+    egresos: 0,
+    balance: 0,
+    total_movimientos: 0,
+  });
 
   // ===============================
   // CARGA DE DATOS
   // ===============================
-  const loadTransactions = async () => {
+  const loadData = async () => {
     try {
-      const data = await fetchTransactions();
-      setTransactions(data.transactions || []);
+      const [txData, summaryData] = await Promise.all([
+        fetchTransactions(),
+        fetchSummary(),
+      ]);
+
+      setTransactions(txData.transactions || []);
+      setSummary(summaryData);
     } catch (err) {
-      console.error("Error cargando transacciones", err);
+      console.error("Error cargando datos", err);
     }
   };
 
   useEffect(() => {
-    loadTransactions();
+    loadData();
   }, []);
-
-  // ===============================
-  // KPIs FINANCIEROS
-  // ===============================
-  const ingresos = transactions
-    .filter((t) => t.type === "ingreso")
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const egresos = transactions
-    .filter((t) => t.type === "egreso")
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const balance = ingresos - egresos;
-
-  const conComprobante = transactions.filter((t) => t.has_receipt).length;
-  const sinComprobante = transactions.length - conComprobante;
-
-  // ===============================
-  // SALDOS POR CUENTA (OPCIÓN 1)
-  // ===============================
-  const saldosPorCuenta = [
-    { name: "Efectivo Caja Fuerte", amount: 1200000 },
-    { name: "Efectivo Caja Chica", amount: 180000 },
-    { name: "Davivienda Ahorros Daniel", amount: 2350000 },
-    { name: "Davivienda Ahorros Karla", amount: 4100000 },
-    { name: "Ahorros Caja Social", amount: 950000 },
-    { name: "Nequi Karla", amount: 320000 },
-    { name: "Nequi Daniel", amount: 280000 },
-    { name: "Daviplata Karla", amount: 150000 },
-    { name: "Tarjeta Nu Daniel", amount: -860000 },
-  ];
-
-  const saldoTotalCuentas = saldosPorCuenta.reduce(
-    (sum, acc) => sum + acc.amount,
-    0
-  );
 
   // ===============================
   // RENDER
@@ -66,68 +44,20 @@ function App() {
 
       {/* ================= KPIs ================= */}
       <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem" }}>
-        <KpiCard title="Ingresos" value={ingresos} color="#2ecc71" />
-        <KpiCard title="Egresos" value={egresos} color="#e74c3c" />
-        <KpiCard title="Balance" value={balance} color="#3498db" />
-        <div style={kpiCardStyle("#f1c40f")}>
-          <strong>Comprobantes</strong>
-          <div>✔ {conComprobante} | ✖ {sinComprobante}</div>
-        </div>
-      </div>
-
-      {/* ================= SALDO ACTUAL ================= */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h3>💰 Saldo actual consolidado</h3>
-        <div
-          style={{
-            fontSize: "1.8rem",
-            marginTop: "0.5rem",
-            color: saldoTotalCuentas >= 0 ? "#2ecc71" : "#e74c3c",
-          }}
-        >
-          ${saldoTotalCuentas.toLocaleString()}
-        </div>
-      </div>
-
-      {/* ================= SALDOS POR CUENTA ================= */}
-      <div style={{ marginBottom: "3rem" }}>
-        <h3 style={{ marginBottom: "1rem" }}>🏦 Saldos por cuenta</h3>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          {saldosPorCuenta.map((acc) => (
-            <div
-              key={acc.name}
-              style={{
-                border: "1px solid #444",
-                padding: "1rem",
-                borderRadius: "8px",
-                background: "#1c1c1c",
-              }}
-            >
-              <strong>{acc.name}</strong>
-              <div
-                style={{
-                  marginTop: "0.5rem",
-                  fontSize: "1.1rem",
-                  color: acc.amount >= 0 ? "#2ecc71" : "#e74c3c",
-                }}
-              >
-                ${acc.amount.toLocaleString()}
-              </div>
-            </div>
-          ))}
-        </div>
+        <KpiCard title="Ingresos" value={summary.ingresos} color="#2ecc71" />
+        <KpiCard title="Egresos" value={summary.egresos} color="#e74c3c" />
+        <KpiCard title="Balance" value={summary.balance} color="#3498db" />
+        <KpiCard
+          title="Movimientos"
+          value={summary.total_movimientos}
+          color="#f1c40f"
+          isCurrency={false}
+        />
       </div>
 
       {/* ================= NUEVO MOVIMIENTO ================= */}
       <h3 style={{ marginBottom: "0.5rem" }}>➕ Nuevo movimiento</h3>
-      <TransactionForm onCreated={loadTransactions} />
+      <TransactionForm onCreated={loadData} />
 
       {/* ================= TABLA ================= */}
       <h2 style={{ marginTop: "3rem" }}>📋 Movimientos</h2>
@@ -136,22 +66,21 @@ function App() {
         <thead>
           <tr>
             <th align="left">Descripción</th>
-            <th align="left">Tipo</th>
             <th align="right">Monto</th>
             <th align="left">Fecha</th>
-            <th align="left">Comprobante</th>
           </tr>
         </thead>
         <tbody>
           {transactions.map((t, idx) => (
             <tr key={idx}>
               <td>{t.description}</td>
-              <td style={{ color: t.type === "ingreso" ? "#2ecc71" : "#e74c3c" }}>
-                {t.type}
+              <td
+                align="right"
+                style={{ color: t.amount >= 0 ? "#2ecc71" : "#e74c3c" }}
+              >
+                ${Number(t.amount).toLocaleString()}
               </td>
-              <td align="right">${t.amount.toLocaleString()}</td>
-              <td>{t.date || "—"}</td>
-              <td>{t.has_receipt ? "Sí" : "No"}</td>
+              <td>{t.created_at || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -163,11 +92,13 @@ function App() {
 // ===============================
 // COMPONENTES AUXILIARES
 // ===============================
-function KpiCard({ title, value, color }) {
+function KpiCard({ title, value, color, isCurrency = true }) {
   return (
     <div style={kpiCardStyle(color)}>
       <strong>{title}</strong>
-      <div>${value.toLocaleString()}</div>
+      <div>
+        {isCurrency ? `$${Number(value).toLocaleString()}` : value}
+      </div>
     </div>
   );
 }

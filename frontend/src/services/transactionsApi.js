@@ -1,4 +1,4 @@
-// Endpoint real expuesto por ngrok (Django)
+// Base URL del backend (ajústalo si cambia ngrok o dominio)
 const API_BASE_URL = "https://finanzapp.ngrok.io/api/transactions/";
 
 /**
@@ -8,10 +8,36 @@ const API_BASE_URL = "https://finanzapp.ngrok.io/api/transactions/";
 export async function fetchTransactions() {
   const response = await fetch(API_BASE_URL, {
     method: "GET",
+    credentials: "include",
   });
 
   if (!response.ok) {
     throw new Error("Error obteniendo transacciones");
+  }
+
+  return response.json();
+}
+
+/**
+ * Obtiene el resumen financiero
+ * GET /api/transactions/summary/
+ *
+ * Espera:
+ * {
+ *   ingresos: number,
+ *   egresos: number,
+ *   balance: number,
+ *   total_movimientos: number
+ * }
+ */
+export async function fetchSummary() {
+  const response = await fetch(`${API_BASE_URL}summary/`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("Error obteniendo resumen financiero");
   }
 
   return response.json();
@@ -27,6 +53,7 @@ export async function createTransaction(payload) {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify(payload),
   });
 

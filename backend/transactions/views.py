@@ -7,6 +7,13 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.models import Transaction
 from .services import get_transactions, create_transaction
+from .services import get_account_balances
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def account_balances(request):
+    data = get_account_balances(request.user)
+    return Response(data)
 
 
 # =========================
@@ -39,6 +46,16 @@ def summary(request):
         "balance": balance,
         "total_movimientos": total_movimientos,
     })
+
+from .services import get_account_balances
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def accounts(request):
+    data = get_account_balances(request.user)
+    return Response(data)
+
 
 
 # =========================

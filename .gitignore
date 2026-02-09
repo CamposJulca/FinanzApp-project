@@ -27,3 +27,14 @@ package-lock.json
 *.pid
 
 infra/postgres/data/
+
+# Datos locales / CSV
+backend/data/
+
+# Python
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
