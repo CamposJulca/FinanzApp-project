@@ -24,19 +24,33 @@ class Household(models.Model):
 
 class Account(models.Model):
     """
-    Cuenta financiera base (caja, banco, billetera, etc.)
+    Cuenta financiera real declarada por el usuario.
+    Representa una fuente física o digital de dinero
+    (ej: efectivo, cuenta bancaria, billetera digital).
+
+    El saldo aquí NO se calcula automáticamente:
+    es ingresado manualmente por el usuario y se usa
+    para conciliación contra el saldo contable.
     """
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="accounts"
     )
-    name = models.CharField(max_length=100)
-    balance = models.DecimalField(
+
+    name = models.CharField(
+        max_length=100,
+        help_text="Nombre de la cuenta (ej: Caja, Bancolombia, Nequi)"
+    )
+
+    saldo_real = models.DecimalField(
         max_digits=14,
         decimal_places=2,
-        default=0
+        default=0,
+        help_text="Saldo real declarado manualmente por el usuario"
     )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

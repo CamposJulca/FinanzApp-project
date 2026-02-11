@@ -8,19 +8,34 @@ from .models import (
     TransactionSubCategory,
 )
 
+# =========================
+# Household
+# =========================
 @admin.register(Household)
 class HouseholdAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "created_at")
     filter_horizontal = ("members",)
 
 
+# =========================
+# Account
+# =========================
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "user", "balance", "created_at")
+    list_display = (
+        "id",
+        "name",
+        "user",
+        "saldo_real",
+        "created_at",
+    )
     list_filter = ("user",)
     search_fields = ("name",)
 
 
+# =========================
+# Árbol de clasificación
+# =========================
 @admin.register(TransactionType)
 class TransactionTypeAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
@@ -41,6 +56,9 @@ class TransactionSubCategoryAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
 
+# =========================
+# Transaction
+# =========================
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
     list_display = (

@@ -1,8 +1,28 @@
 import { useState } from "react";
 
-export function TransactionForm({ onSubmit }) {
+export function TransactionForm({ onSubmit, disabled = false, reason = "" }) {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+
+  if (disabled) {
+    return (
+      <div
+        style={{
+          padding: "1rem",
+          border: "1px solid #e74c3c",
+          borderRadius: "8px",
+          background: "#1c1c1c",
+          color: "#e74c3c",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <strong>🚫 Registro de movimientos bloqueado</strong>
+        <p style={{ marginTop: "0.5rem", color: "#aaa" }}>
+          {reason}
+        </p>
+      </div>
+    );
+  }
 
   const handleSubmit = async () => {
     if (!description || !amount) return;
@@ -10,8 +30,6 @@ export function TransactionForm({ onSubmit }) {
     await onSubmit({
       description,
       amount: Number(amount),
-      type: "egreso",
-      has_receipt: false,
       source: "manual",
     });
 
