@@ -8,37 +8,27 @@ export function ConciliationBanner({ summary }) {
 
   const isOk = estado === "OK";
 
-  const bgColor = isOk ? "#0f2e1d" : "#2e0f0f";
-  const borderColor = isOk ? "#2ecc71" : "#e74c3c";
-  const textColor = isOk ? "#2ecc71" : "#e74c3c";
-
   return (
-    <div
-      style={{
-        border: `2px solid ${borderColor}`,
-        background: bgColor,
-        borderRadius: "10px",
-        padding: "1rem",
-        marginBottom: "2rem",
-      }}
-    >
-      <h2 style={{ color: textColor, marginBottom: "0.5rem" }}>
-        {isOk ? "🟢 Conciliación correcta" : "🔴 Conciliación pendiente"}
-      </h2>
+    <div className={`conciliation-banner ${isOk ? "ok" : "pending"}`}>
+      <div>
+        <p className="eyebrow">Conciliación</p>
+        <h2>{isOk ? "Conciliacion correcta" : "Conciliacion pendiente"}</h2>
+      </div>
 
-      <p style={{ margin: 0 }}>
-        <strong>Saldo contable:</strong>{" "}
-        ${Number(saldo_contable).toLocaleString()}
-      </p>
-      <p style={{ margin: 0 }}>
-        <strong>Saldo real (cuentas):</strong>{" "}
-        ${Number(saldo_cuentas).toLocaleString()}
-      </p>
+      <div className="conciliation-grid">
+        <p>
+          <span>Saldo contable</span>
+          <strong>${Number(saldo_contable).toLocaleString()}</strong>
+        </p>
+        <p>
+          <span>Saldo real</span>
+          <strong>${Number(saldo_cuentas).toLocaleString()}</strong>
+        </p>
+      </div>
 
       {!isOk && (
-        <p style={{ marginTop: "0.5rem", color: "#f1c40f" }}>
-          ⚠ Diferencia detectada:{" "}
-          <strong>${Number(diferencia).toLocaleString()}</strong>
+        <p className="difference-alert">
+          Diferencia detectada: <strong>${Number(diferencia).toLocaleString()}</strong>
         </p>
       )}
     </div>

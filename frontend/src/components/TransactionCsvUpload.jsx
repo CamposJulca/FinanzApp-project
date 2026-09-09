@@ -38,11 +38,8 @@ export function TransactionCsvUpload({ onFinished }) {
 
   return (
     <div style={{ margin: "1.5rem 0" }}>
-      <label
-        htmlFor="csv-upload"
-        style={{ cursor: "pointer", color: "#f1c40f" }}
-      >
-        📂 Cargar CSV Memorae
+      <label htmlFor="csv-upload" className="file-trigger">
+        Cargar CSV Memorae
       </label>
 
       <input

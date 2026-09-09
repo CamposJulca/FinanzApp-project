@@ -40,3 +40,10 @@ node_modules/
 dist/
 backend/staticfiles/
 backend/.venv/
+
+# Herramientas locales / caches
+.claude/
+frontend/.vite-cache/
+
+# Copias de seguridad de variables de entorno (pueden traer credenciales)
+.env.bak.*
