@@ -109,15 +109,42 @@ export const deleteType = (id) => request(`types/${id}/`, { method: "DELETE" });
 export const fetchCategories = () => request("categories/");
 export const createCategory = (payload) =>
   request("categories/", { method: "POST", body: payload });
-export const updateCategory = (id, payload) =>
-  request(`categories/${id}/`, { method: "PATCH", body: payload });
-export const deleteCategory = (id) =>
-  request(`categories/${id}/`, { method: "DELETE" });
+export const updateCategory = (id, payload, { confirm = false } = {}) =>
+  request(`categories/${id}/${confirm ? "?confirm=true" : ""}`, {
+    method: "PATCH",
+    body: payload,
+  });
 
 export const fetchSubCategories = () => request("subcategories/");
 export const createSubCategory = (payload) =>
   request("subcategories/", { method: "POST", body: payload });
-export const updateSubCategory = (id, payload) =>
-  request(`subcategories/${id}/`, { method: "PATCH", body: payload });
-export const deleteSubCategory = (id) =>
-  request(`subcategories/${id}/`, { method: "DELETE" });
+export const updateSubCategory = (id, payload, { confirm = false } = {}) =>
+  request(`subcategories/${id}/${confirm ? "?confirm=true" : ""}`, {
+    method: "PATCH",
+    body: payload,
+  });
+
+// ============================
+// BORRADO CON IMPACTO DECLARADO
+// ============================
+// El backend rechaza borrar una rama con movimientos si no se le dice qué hacer
+// con ellos. `fetch*Impact` es la consulta previa que alimenta el aviso, y la
+// estrategia viaja en la propia petición de borrado, nunca por defecto.
+
+export const fetchCategoryImpact = (id) => request(`categories/${id}/impact/`);
+export const fetchSubCategoryImpact = (id) =>
+  request(`subcategories/${id}/impact/`);
+
+function deleteWithStrategy(base, id, { strategy, target } = {}) {
+  const params = new URLSearchParams();
+  if (strategy) params.set("on_transactions", strategy);
+  if (target) params.set("to", String(target));
+  const qs = params.toString();
+  return request(`${base}/${id}/${qs ? `?${qs}` : ""}`, { method: "DELETE" });
+}
+
+export const deleteCategory = (id, options) =>
+  deleteWithStrategy("categories", id, options);
+
+export const deleteSubCategory = (id, options) =>
+  deleteWithStrategy("subcategories", id, options);

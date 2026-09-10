@@ -955,3 +955,210 @@ tr.row-editing {
 .file-trigger:hover {
   background: var(--surface-hover);
 }
+
+/* =========================================================
+   AVISO DE IMPACTO — borrado de ramas con movimientos
+   ========================================================= */
+.impact-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.impact-dialog {
+  width: 100%;
+  max-width: 560px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.22);
+}
+
+.impact-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.impact-head h3 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.impact-alert {
+  padding: 12px 14px;
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--text-soft);
+}
+
+.impact-alert strong {
+  display: block;
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+.impact-alert p {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+
+.impact-alert .impact-warn {
+  padding-top: 8px;
+  border-top: 1px solid var(--danger-line);
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.impact-block {
+  margin-top: 18px;
+}
+
+.impact-label {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.impact-list {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  list-style: none;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.impact-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.impact-list li:last-child {
+  border-bottom: none;
+}
+
+.impact-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.impact-choice:has(input:checked) {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+}
+
+.impact-choice.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.impact-choice input {
+  margin-top: 3px;
+}
+
+.impact-choice strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.impact-choice em {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.impact-target {
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.impact-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.impact-actions button {
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.impact-actions button.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.impact-actions button.danger:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.impact-actions button.danger:disabled {
+  border-color: var(--danger-line);
+  background: var(--danger-line);
+  color: var(--surface);
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .impact-backdrop {
+    padding: 16px 10px;
+  }
+  .impact-actions {
+    flex-direction: column-reverse;
+  }
+  .impact-actions button {
+    width: 100%;
+  }
+}

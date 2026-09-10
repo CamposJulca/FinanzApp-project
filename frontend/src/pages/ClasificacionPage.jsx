@@ -5,10 +5,12 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  fetchCategoryImpact,
   fetchSubCategories,
   createSubCategory,
   updateSubCategory,
   deleteSubCategory,
+  fetchSubCategoryImpact,
 } from "../services/transactionsApi";
 
 /**
@@ -28,26 +30,32 @@ export function ClasificacionPage() {
   const [selectedType, setSelectedType] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [status, setStatus] = useState({ type: "idle", message: "" });
+  const [pending, setPending] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  // `load` reporta su propio fallo en vez de propagarlo. Así el try/catch de
+  // quien escribe (`run`, `confirmDelete`) cubre sólo la escritura, y un fallo
+  // al recargar el árbol no se confunde con un fallo al guardar.
   const load = useCallback(async () => {
-    const [t, c, s] = await Promise.all([
-      fetchTypes(),
-      fetchCategories(),
-      fetchSubCategories(),
-    ]);
-    setTypes(t.types || []);
-    setCategories(c.categories || []);
-    setSubcategories(s.subcategories || []);
+    setLoading(true);
+    try {
+      const [t, c, s] = await Promise.all([
+        fetchTypes(),
+        fetchCategories(),
+        fetchSubCategories(),
+      ]);
+      setTypes(t.types || []);
+      setCategories(c.categories || []);
+      setSubcategories(s.subcategories || []);
+    } catch (error) {
+      setStatus({ type: "error", message: error.message });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    let active = true;
-    load().catch((error) => {
-      if (active) setStatus({ type: "error", message: error.message });
-    });
-    return () => {
-      active = false;
-    };
+    load();
   }, [load]);
 
   const run = async (action, successMessage) => {
@@ -60,6 +68,60 @@ export function ClasificacionPage() {
     } catch (error) {
       setStatus({ type: "error", message: error.message });
       return false;
+    }
+  };
+
+  /**
+   * Borrar nunca es un clic directo cuando hay movimientos colgando: primero se
+   * consulta el impacto al backend y se pide una decisión explícita sobre qué
+   * pasa con ellos. Si la rama está vacía basta una confirmación simple.
+   */
+  const requestDelete = async (level, item) => {
+    setStatus({ type: "saving", message: "Revisando impacto..." });
+    try {
+      const impact =
+        level === "category"
+          ? await fetchCategoryImpact(item.id)
+          : await fetchSubCategoryImpact(item.id);
+      setStatus({ type: "idle", message: "" });
+
+      if (impact.blocking) {
+        setPending({ level, item, impact });
+        return;
+      }
+
+      const arrastra =
+        level === "category" && impact.subcategories_count > 0
+          ? ` y sus ${impact.subcategories_count} subcategoría(s)`
+          : "";
+      if (
+        window.confirm(
+          `¿Eliminar «${impact.path}»${arrastra}? No tiene movimientos clasificados.`
+        )
+      ) {
+        await confirmDelete(level, item, {});
+      }
+    } catch (error) {
+      setStatus({ type: "error", message: error.message });
+    }
+  };
+
+  const confirmDelete = async (level, item, options) => {
+    setStatus({ type: "saving", message: "Eliminando..." });
+    try {
+      const result =
+        level === "category"
+          ? await deleteCategory(item.id, options)
+          : await deleteSubCategory(item.id, options);
+
+      setPending(null);
+      if (level === "category" && selectedCategory === item.id) {
+        setSelectedCategory(null);
+      }
+      setStatus({ type: "success", message: describeDeletion(result) });
+      await load();
+    } catch (error) {
+      setStatus({ type: "error", message: error.message });
     }
   };
 
@@ -99,6 +161,7 @@ export function ClasificacionPage() {
           title="Tipo · Subtipo"
           hint="fijos"
           items={types}
+          loading={loading}
           readOnly
           selectedId={selectedType}
           getLabel={(item) => item.tipo}
@@ -114,6 +177,7 @@ export function ClasificacionPage() {
           title="Categorías"
           hint={selectedPair ? selectedPair.label : "elige una pareja"}
           items={visibleCategories}
+          loading={loading}
           selectedId={selectedCategory}
           countLabel={(item) => `${item.subcategories_count} sub.`}
           subtitle={(item) => item.type_name}
@@ -131,21 +195,14 @@ export function ClasificacionPage() {
           onUpdate={(id, name) =>
             run(() => updateCategory(id, { name }), "Categoría actualizada.")
           }
-          onDelete={(item) =>
-            run(() => deleteCategory(item.id), "Categoría eliminada.")
-          }
-          deleteWarning={(item) =>
-            item.subcategories_count > 0
-              ? `"${item.name}" tiene ${item.subcategories_count} subcategoría(s). ` +
-                "Al borrarla se eliminan también. ¿Continuar?"
-              : `¿Eliminar la categoría "${item.name}"?`
-          }
+          onDelete={(item) => requestDelete("category", item)}
         />
 
         <TreeColumn
           title="Subcategorías"
           hint={selectedCategory ? "filtradas" : "nivel 3"}
           items={visibleSubcategories}
+          loading={loading}
           subtitle={(item) => `${item.type_name} → ${item.category_name}`}
           disabled={!selectedCategory}
           disabledHint="Selecciona una categoría para crear subcategorías"
@@ -158,12 +215,19 @@ export function ClasificacionPage() {
           onUpdate={(id, name) =>
             run(() => updateSubCategory(id, { name }), "Subcategoría actualizada.")
           }
-          onDelete={(item) =>
-            run(() => deleteSubCategory(item.id), "Subcategoría eliminada.")
-          }
-          deleteWarning={(item) => `¿Eliminar la subcategoría "${item.name}"?`}
+          onDelete={(item) => requestDelete("subcategory", item)}
         />
       </div>
+
+      {pending && (
+        <ImpactDialog
+          pending={pending}
+          onCancel={() => setPending(null)}
+          onConfirm={(options) =>
+            confirmDelete(pending.level, pending.item, options)
+          }
+        />
+      )}
     </section>
   );
 }
@@ -172,6 +236,7 @@ function TreeColumn({
   title,
   hint,
   items,
+  loading = false,
   selectedId = null,
   onSelect,
   subtitle,
@@ -180,7 +245,6 @@ function TreeColumn({
   onCreate,
   onUpdate,
   onDelete,
-  deleteWarning,
   disabled = false,
   disabledHint = "",
   readOnly = false,
@@ -200,10 +264,6 @@ function TreeColumn({
     if (!draft.trim() || !onUpdate) return;
     const ok = await onUpdate(id, draft.trim());
     if (ok) setEditingId(null);
-  };
-
-  const handleDelete = async (item) => {
-    if (window.confirm(deleteWarning(item))) await onDelete(item);
   };
 
   return (
@@ -286,7 +346,7 @@ function TreeColumn({
                       <button
                         type="button"
                         className="danger"
-                        onClick={() => handleDelete(item)}
+                        onClick={() => onDelete(item)}
                       >
                         Eliminar
                       </button>
@@ -298,9 +358,218 @@ function TreeColumn({
           </li>
         ))}
         {items.length === 0 && (
-          <li className="empty-state">Sin elementos.</li>
+          <li className="empty-state">
+            {loading ? "Cargando..." : "Sin elementos."}
+          </li>
         )}
       </ul>
     </div>
   );
 }
+
+const money = (value) =>
+  `$${Number(value).toLocaleString("es-CO", { maximumFractionDigits: 0 })}`;
+
+function describeDeletion(result) {
+  if (!result) return "Eliminada.";
+
+  const { deleted, strategy, transactions_affected: n, reassigned_to: to } = result;
+  const base = `«${deleted?.path ?? ""}» eliminada`;
+
+  if (!strategy || !n) return `${base}.`;
+  if (strategy === "unclassify") {
+    return `${base}. ${n} movimiento(s) quedaron sin clasificar.`;
+  }
+  return `${base}. ${n} movimiento(s) reasignados a «${to?.path}».`;
+}
+
+/**
+ * Aviso previo a un borrado con movimientos colgando.
+ *
+ * No hay opción "eliminar sin más": el usuario tiene que elegir el destino de
+ * esos movimientos, y las dos alternativas son las únicas que no inventan
+ * datos. Reasignar sólo ofrece subcategorías de la misma rama (INGRESO o
+ * EGRESO), porque mover un egreso a una rama de ingreso lo dejaría con el signo
+ * contrario a su clasificación.
+ */
+function ImpactDialog({ pending, onCancel, onConfirm }) {
+  const { impact, level } = pending;
+  const [strategy, setStrategy] = useState("unclassify");
+  const [target, setTarget] = useState("");
+  const [working, setWorking] = useState(false);
+
+  const targets = impact.reassign_targets || [];
+  const listo = strategy === "unclassify" || (strategy === "reassign" && target);
+
+  const submit = async () => {
+    if (!listo) return;
+    setWorking(true);
+    try {
+      await onConfirm(
+        strategy === "reassign" ? { strategy, target } : { strategy }
+      );
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <div
+      className="impact-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="impact-title"
+    >
+      <div className="impact-dialog">
+        <div className="impact-head">
+          <div>
+            <p className="eyebrow">
+              Eliminar {level === "category" ? "categoría" : "subcategoría"}
+            </p>
+            <h3 id="impact-title">{impact.path}</h3>
+          </div>
+          <span className="chip">{impact.tipo}</span>
+        </div>
+
+        <div className="impact-alert">
+          <strong>
+            {impact.transactions_count} movimiento(s) clasificados aquí, por{" "}
+            {money(impact.transactions_total)}.
+          </strong>
+          <p>
+            Si eliminas esta rama esos movimientos se quedan sin destino. Elige
+            qué hacer con ellos antes de continuar.
+          </p>
+          {impact.transactions_count_others > 0 && (
+            <p className="impact-warn">
+              Atención: {impact.transactions_count_others} de esos movimientos
+              son de otro usuario. El árbol de clasificación es compartido, así
+              que tu decisión también les afecta.
+            </p>
+          )}
+        </div>
+
+        {level === "category" && (
+          <div className="impact-block">
+            <p className="impact-label">
+              Subcategorías que desaparecen ({impact.subcategories_count})
+            </p>
+            <ul className="impact-list">
+              {impact.subcategories.map((leaf) => (
+                <li key={leaf.id}>
+                  <span>{leaf.name}</span>
+                  <span className="chip">
+                    {leaf.transactions_count} mov.
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {impact.sample.length > 0 && (
+          <div className="impact-block">
+            <p className="impact-label">
+              Tus movimientos afectados
+              {impact.transactions_count_mine > impact.sample.length &&
+                ` (${impact.sample.length} de ${impact.transactions_count_mine})`}
+            </p>
+            <ul className="impact-list">
+              {impact.sample.map((mov) => (
+                <li key={mov.id}>
+                  <span>
+                    {new Date(mov.created_at).toLocaleDateString()} ·{" "}
+                    {mov.description || `movimiento #${mov.id}`}
+                  </span>
+                  <span
+                    className={
+                      Number(mov.amount) >= 0 ? "amount income" : "amount expense"
+                    }
+                  >
+                    {money(mov.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="impact-block">
+          <p className="impact-label">Qué hacer con esos movimientos</p>
+
+          <label className="impact-choice">
+            <input
+              type="radio"
+              name="impact-strategy"
+              value="unclassify"
+              checked={strategy === "unclassify"}
+              onChange={() => setStrategy("unclassify")}
+            />
+            <span>
+              <strong>Dejarlos sin clasificar</strong>
+              <em>
+                Se conservan íntegros y aparecen como «Sin clasificar» en
+                Movimientos. Los montos y el saldo no cambian.
+              </em>
+            </span>
+          </label>
+
+          <label
+            className={`impact-choice ${targets.length === 0 ? "disabled" : ""}`}
+          >
+            <input
+              type="radio"
+              name="impact-strategy"
+              value="reassign"
+              disabled={targets.length === 0}
+              checked={strategy === "reassign"}
+              onChange={() => setStrategy("reassign")}
+            />
+            <span>
+              <strong>Reasignarlos a otra subcategoría</strong>
+              <em>
+                {targets.length === 0
+                  ? `No hay otra subcategoría de ${impact.tipo} disponible.`
+                  : `Sólo se ofrecen las ${targets.length} subcategorías de ${impact.tipo}: reasignar a la otra rama dejaría los movimientos con el signo contrario.`}
+              </em>
+            </span>
+          </label>
+
+          {strategy === "reassign" && targets.length > 0 && (
+            <select
+              className="impact-target"
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+            >
+              <option value="">Elige la subcategoría destino...</option>
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.path}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="impact-actions">
+          <button type="button" className="ghost-btn" onClick={onCancel}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="danger"
+            disabled={!listo || working}
+            onClick={submit}
+          >
+            {working
+              ? "Eliminando..."
+              : strategy === "unclassify"
+                ? `Eliminar y dejar ${impact.transactions_count} sin clasificar`
+                : "Eliminar y reasignar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

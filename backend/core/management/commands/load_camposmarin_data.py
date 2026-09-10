@@ -1,7 +1,13 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from django.utils.dateparse import parse_date
-from core.models import Household, Account, Category, Transaction
+from core.models import (
+    Household,
+    Account,
+    Transaction,
+    TransactionCategory,
+    TransactionSubCategory,
+    TransactionType,
+)
 from datetime import datetime
 from django.utils.timezone import make_aware
 
@@ -46,18 +52,21 @@ class Command(BaseCommand):
         account, _ = Account.objects.get_or_create(
             user=user,
             name="Caja General",
-            defaults={"balance": Decimal("0")}
+            defaults={"saldo_real": Decimal("0")}
         )
 
         # 4. Categorías base
         categories = {}
         for code, label in [("IN", "Ingreso"), ("EX", "Egreso")]:
-            cat, _ = Category.objects.get_or_create(
-                user=user,
+            tx_type, _ = TransactionType.objects.get_or_create(
                 name=label,
-                category_type=code
+                defaults={"description": label}
             )
-            categories[code] = cat
+            category, _ = TransactionCategory.objects.get_or_create(
+                type=tx_type,
+                name=label
+            )
+            categories[code] = category
 
         # 5. Dataset (normalizado)
         raw_data = [
@@ -72,11 +81,14 @@ class Command(BaseCommand):
         # 6. Inserción de transacciones
         created_count = 0
         for item, tipo, valor, fecha, descripcion in raw_data:
+            subcategory, _ = TransactionSubCategory.objects.get_or_create(
+                category=categories[tipo],
+                name=item
+            )
             Transaction.objects.create(
                 user=user,
                 account=account,
-                category=categories[tipo],
-                subcategory=item,
+                subcategory=subcategory,
                 amount=Decimal(valor),
                 description=descripcion,
                 created_at=make_aware(datetime.strptime(fecha, "%Y-%m-%d"))
@@ -86,4 +98,3 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"✔ {created_count} transacciones cargadas"))
         self.stdout.write(self.style.SUCCESS("✅ Carga inicial completada"))
-

@@ -63,11 +63,42 @@ class Account(models.Model):
 
 class TransactionType(models.Model):
     """
-    Nivel 1 del árbol.
-    Ej: ingreso fijo, ingreso variable, egreso fijo, egreso variable
+    Nivel 1 del árbol: la pareja (tipo, subtipo).
+
+    `tipo` y `subtipo` son valores fijos del dominio; sus combinaciones
+    producen exactamente 4 parejas:
+        (INGRESO, FIJO)   (INGRESO, VARIABLE)
+        (EGRESO,  FIJO)   (EGRESO,  VARIABLE)
+    Estas 4 filas se siembran en la migración y NO las crea el usuario;
+    el usuario sólo agrega categorías y subcategorías debajo de cada pareja.
     """
-    name = models.CharField(max_length=100, unique=True)
+
+    TIPO_INGRESO = "INGRESO"
+    TIPO_EGRESO = "EGRESO"
+    TIPO_CHOICES = [
+        (TIPO_INGRESO, "INGRESO"),
+        (TIPO_EGRESO, "EGRESO"),
+    ]
+
+    SUBTIPO_FIJO = "FIJO"
+    SUBTIPO_VARIABLE = "VARIABLE"
+    SUBTIPO_CHOICES = [
+        (SUBTIPO_FIJO, "FIJO"),
+        (SUBTIPO_VARIABLE, "VARIABLE"),
+    ]
+
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
+    subtipo = models.CharField(max_length=10, choices=SUBTIPO_CHOICES)
     description = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ("tipo", "subtipo")
+        ordering = ("tipo", "subtipo")
+
+    @property
+    def name(self):
+        """Etiqueta legible de la pareja (compatibilidad hacia atrás)."""
+        return f"{self.tipo} / {self.subtipo}"
 
     def __str__(self):
         return self.name
@@ -121,6 +152,13 @@ class Transaction(models.Model):
     Movimiento financiero real.
     Apunta exclusivamente a una subcategoría del árbol.
     """
+
+    REGISTERED_BY_CHOICES = [
+        ("diana", "Diana"),
+        ("daniel", "Daniel"),
+        ("karla", "Karla"),
+    ]
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -146,6 +184,13 @@ class Transaction(models.Model):
     )
     description = models.TextField(blank=True)
     created_at = models.DateTimeField()
+    registered_by = models.CharField(
+        max_length=20,
+        choices=REGISTERED_BY_CHOICES,
+        blank=True,
+        default="",
+        help_text="Persona del hogar que registró el movimiento (solo Campos Marin)",
+    )
 
     def __str__(self):
         return f"{self.amount} - {self.subcategory}"

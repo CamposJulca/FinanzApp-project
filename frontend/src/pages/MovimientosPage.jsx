@@ -59,6 +59,41 @@ export function MovimientosPage() {
   const setField = (field) => (event) =>
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
 
+  // El tipo del movimiento (ingreso/egreso) manda sobre qué rama del árbol es
+  // clasificable: sin este filtro se podía guardar un ingreso como
+  // "EGRESO / FIJO → CARRO → SOAT".
+  const matchesType = (sub, movementType) =>
+    (sub.tipo || "").toUpperCase() === movementType.toUpperCase();
+
+  const setType = (event) => {
+    const type = event.target.value;
+    setForm((prev) => {
+      const selected = subcategories.find(
+        (s) => String(s.id) === String(prev.subcategory)
+      );
+      // Cambiar el tipo invalida una subcategoría de la otra rama.
+      const subcategory =
+        selected && !matchesType(selected, type) ? "" : prev.subcategory;
+      return { ...prev, type, subcategory };
+    });
+  };
+
+  const visibleSubcategories = subcategories.filter((s) =>
+    matchesType(s, form.type)
+  );
+
+  // En edición, un movimiento antiguo puede apuntar a la rama contraria. Se
+  // conserva visible para no borrarlo en silencio al guardar.
+  const selectedSubcategory = subcategories.find(
+    (s) => String(s.id) === String(form.subcategory)
+  );
+  const outOfBranch =
+    selectedSubcategory && !matchesType(selectedSubcategory, form.type)
+      ? selectedSubcategory
+      : null;
+
+  const groupedSubcategories = groupByBranch(visibleSubcategories);
+
   const resetForm = () => {
     setForm({ ...EMPTY_FORM, created_at: today() });
     setEditingId(null);
@@ -173,7 +208,7 @@ export function MovimientosPage() {
 
           <label>
             Tipo
-            <select value={form.type} onChange={setField("type")}>
+            <select value={form.type} onChange={setType}>
               <option value="egreso">Egreso</option>
               <option value="ingreso">Ingreso</option>
             </select>
@@ -195,10 +230,22 @@ export function MovimientosPage() {
             Subcategoría
             <select value={form.subcategory} onChange={setField("subcategory")}>
               <option value="">Sin clasificar</option>
-              {subcategories.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.type_name} → {s.category_name} → {s.name}
-                </option>
+              {outOfBranch && (
+                <optgroup label="Fuera del tipo actual">
+                  <option value={outOfBranch.id}>
+                    {outOfBranch.type_name} → {outOfBranch.category_name} →{" "}
+                    {outOfBranch.name}
+                  </option>
+                </optgroup>
+              )}
+              {groupedSubcategories.map(([branch, items]) => (
+                <optgroup key={branch} label={branch}>
+                  {items.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
@@ -278,7 +325,9 @@ export function MovimientosPage() {
                   <td>{t.account_name}</td>
                   <td>
                     {t.subcategory_name ? (
-                      <span className="chip">{t.subcategory_name}</span>
+                      <span className="chip" title={t.subcategory_path || ""}>
+                        {t.subcategory_path || t.subcategory_name}
+                      </span>
                     ) : (
                       <span className="muted">Sin clasificar</span>
                     )}
@@ -333,4 +382,19 @@ export function MovimientosPage() {
       </section>
     </>
   );
+}
+
+/**
+ * Agrupa por rama "SUBTIPO → Categoría" para que el desplegable sea navegable.
+ * El tipo (INGRESO/EGRESO) ya viene fijado por el filtro, así que repetirlo en
+ * cada etiqueta sólo añadiría ruido.
+ */
+function groupByBranch(subcategories) {
+  const groups = new Map();
+  for (const sub of subcategories) {
+    const branch = `${sub.subtipo} → ${sub.category_name}`;
+    if (!groups.has(branch)) groups.set(branch, []);
+    groups.get(branch).push(sub);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
 }

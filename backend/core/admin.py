@@ -38,8 +38,8 @@ class AccountAdmin(admin.ModelAdmin):
 # =========================
 @admin.register(TransactionType)
 class TransactionTypeAdmin(admin.ModelAdmin):
-    list_display = ("id", "name")
-    search_fields = ("name",)
+    list_display = ("id", "tipo", "subtipo")
+    list_filter = ("tipo", "subtipo")
 
 
 @admin.register(TransactionCategory)

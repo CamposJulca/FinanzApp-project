@@ -1,6 +1,6 @@
 from django.contrib import admin
-from django.urls import path, include
-from django.views.generic import TemplateView
+from django.urls import path, include, re_path
+from django.views.generic import RedirectView, TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
@@ -18,7 +18,16 @@ urlpatterns = [
 
 
     # Frontend
-    path("", TemplateView.as_view(template_name="index.html")),
+    path("", RedirectView.as_view(url="/transacciones/", permanent=False)),
+
+    # La SPA maneja sus propias subrutas (/transacciones/cuentas, etc.).
+    # El catch-all devuelve index.html para que recargar o entrar directo a un
+    # módulo no acabe en un 404 de Django.
+    re_path(
+        r"^transacciones/.*$",
+        TemplateView.as_view(template_name="index.html"),
+        name="spa",
+    ),
 ]
 
 
