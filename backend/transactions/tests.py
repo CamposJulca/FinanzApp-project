@@ -63,6 +63,63 @@ class LegacyTransactionPayloadTests(TestCase):
         self.assertEqual(transaction.fecha_efectiva, timezone.localdate())
         self.assertIsNotNone(transaction.created_at)
 
+    def test_create_accepts_valid_coverage_period(self):
+        response = self.client.post(
+            "/api/transactions/",
+            {
+                "account": self.account.id,
+                "amount": "125.00",
+                "type": "egreso",
+                "description": "Seguro anual",
+                "fecha_efectiva": "2026-10-20",
+                "cubre_desde": "2026-10-01",
+                "cubre_hasta": "2027-09-30",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        transaction = Transaction.objects.get(description="Seguro anual")
+        self.assertEqual(transaction.cubre_desde, date(2026, 10, 1))
+        self.assertEqual(transaction.cubre_hasta, date(2027, 9, 30))
+        self.assertIsNotNone(transaction.inserted_at)
+        self.assertIn("inserted_at", response.data)
+
+    def test_create_rejects_incomplete_coverage_period(self):
+        response = self.client.post(
+            "/api/transactions/",
+            {
+                "account": self.account.id,
+                "amount": "125.00",
+                "type": "egreso",
+                "description": "Periodo incompleto",
+                "fecha_efectiva": "2026-10-20",
+                "cubre_desde": "2026-10-01",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("cubre_hasta", response.data)
+
+    def test_inserted_at_is_read_only(self):
+        response = self.client.post(
+            "/api/transactions/",
+            {
+                "account": self.account.id,
+                "amount": "50.00",
+                "type": "ingreso",
+                "description": "Auditoría",
+                "inserted_at": "2000-01-01T00:00:00Z",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        transaction = Transaction.objects.get(description="Auditoría")
+        self.assertNotEqual(transaction.inserted_at.year, 2000)
+
+
 class AccountCurrencyApiTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("accounts-user")
@@ -85,6 +142,39 @@ class AccountCurrencyApiTests(TestCase):
         )
         self.assertEqual(updated.status_code, 200, updated.data)
         self.assertEqual(updated.data["currency"], "PEN")
+
+
+class SubcategoryFrequencyApiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("frequency-user")
+        self.client = APIClient()
+        self.client.force_login(self.user)
+        self.type = TransactionType.objects.get(tipo="EGRESO", subtipo="FIJO")
+        self.category = TransactionCategory.objects.create(
+            type=self.type,
+            name="VIVIENDA API",
+        )
+
+    def test_frequency_is_exposed_and_can_be_updated(self):
+        created = self.client.post(
+            "/api/transactions/subcategories/",
+            {
+                "name": "Administración",
+                "category": self.category.id,
+                "frecuencia": "MENSUAL",
+            },
+            format="json",
+        )
+
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["frecuencia"], "MENSUAL")
+        updated = self.client.patch(
+            f"/api/transactions/subcategories/{created.data['id']}/",
+            {"frecuencia": "ANUAL"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, 200, updated.data)
+        self.assertEqual(updated.data["frecuencia"], "ANUAL")
 
 
 class TransferApiTests(TestCase):

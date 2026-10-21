@@ -182,12 +182,26 @@ class TransactionSubCategory(models.Model):
     Nivel 3 del árbol (hojas).
     Es lo que realmente se asigna a una transacción.
     """
+    FRECUENCIA_MENSUAL = "MENSUAL"
+    FRECUENCIA_ANUAL = "ANUAL"
+    FRECUENCIA_ESPORADICO = "ESPORADICO"
+    FRECUENCIA_CHOICES = [
+        (FRECUENCIA_MENSUAL, "MENSUAL"),
+        (FRECUENCIA_ANUAL, "ANUAL"),
+        (FRECUENCIA_ESPORADICO, "ESPORADICO"),
+    ]
+
     category = models.ForeignKey(
         TransactionCategory,
         on_delete=models.CASCADE,
         related_name="subcategories"
     )
     name = models.CharField(max_length=100)
+    frecuencia = models.CharField(
+        max_length=10,
+        choices=FRECUENCIA_CHOICES,
+        default=FRECUENCIA_ESPORADICO,
+    )
 
     class Meta:
         unique_together = ("category", "name")
@@ -245,6 +259,9 @@ class Transaction(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField()
     fecha_efectiva = models.DateField()
+    cubre_desde = models.DateField(null=True, blank=True)
+    cubre_hasta = models.DateField(null=True, blank=True)
+    inserted_at = models.DateTimeField(auto_now_add=True, null=True)
     registered_by = models.CharField(
         max_length=20,
         choices=REGISTERED_BY_CHOICES,
@@ -256,7 +273,38 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.amount} - {self.subcategory}"
 
+    def clean(self):
+        super().clean()
+        errors = {}
+        if (self.cubre_desde is None) != (self.cubre_hasta is None):
+            missing = "cubre_hasta" if self.cubre_hasta is None else "cubre_desde"
+            errors[missing] = "Debes indicar ambas fechas del periodo cubierto."
+        elif (
+            self.cubre_desde is not None
+            and self.cubre_hasta is not None
+            and self.cubre_hasta < self.cubre_desde
+        ):
+            errors["cubre_hasta"] = "La fecha final no puede ser anterior a la inicial."
+        if errors:
+            raise ValidationError(errors)
+
     class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(cubre_desde__isnull=True, cubre_hasta__isnull=True)
+                    | models.Q(cubre_desde__isnull=False, cubre_hasta__isnull=False)
+                ),
+                name="transaction_coverage_dates_pair",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(cubre_desde__isnull=True)
+                    | models.Q(cubre_hasta__gte=models.F("cubre_desde"))
+                ),
+                name="transaction_coverage_dates_order",
+            ),
+        ]
         indexes = [
             models.Index(fields=["user", "fecha_efectiva"]),
             models.Index(fields=["subcategory", "fecha_efectiva"]),

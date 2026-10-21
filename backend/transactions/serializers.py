@@ -139,7 +139,7 @@ class TransactionSubCategorySerializer(serializers.ModelSerializer):
         model = TransactionSubCategory
         fields = (
             "id", "name", "category", "category_name",
-            "tipo", "subtipo", "type_name",
+            "tipo", "subtipo", "type_name", "frecuencia",
         )
 
     def get_type_name(self, obj):
@@ -212,6 +212,9 @@ class TransactionSerializer(serializers.ModelSerializer):
             "type",
             "created_at",
             "fecha_efectiva",
+            "cubre_desde",
+            "cubre_hasta",
+            "inserted_at",
             "account",
             "account_name",
             "subcategory",
@@ -224,6 +227,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "fecha_efectiva": {"required": False},
             "created_at": {"required": False},
             "transfer": {"read_only": True},
+            "inserted_at": {"read_only": True},
         }
 
     def get_subcategory_path(self, obj):
@@ -298,6 +302,26 @@ class TransactionSerializer(serializers.ModelSerializer):
                 timezone.localtime(created_at).date()
                 if timezone.is_aware(created_at)
                 else created_at.date()
+            )
+
+        cubre_desde = attrs.get(
+            "cubre_desde", getattr(self.instance, "cubre_desde", None)
+        )
+        cubre_hasta = attrs.get(
+            "cubre_hasta", getattr(self.instance, "cubre_hasta", None)
+        )
+        if (cubre_desde is None) != (cubre_hasta is None):
+            missing = "cubre_hasta" if cubre_hasta is None else "cubre_desde"
+            raise serializers.ValidationError(
+                {missing: "Debes indicar ambas fechas del periodo cubierto."}
+            )
+        if (
+            cubre_desde is not None
+            and cubre_hasta is not None
+            and cubre_hasta < cubre_desde
+        ):
+            raise serializers.ValidationError(
+                {"cubre_hasta": "La fecha final no puede ser anterior a la inicial."}
             )
 
         subcategory = (

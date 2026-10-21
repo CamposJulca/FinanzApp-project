@@ -14,6 +14,9 @@ from .models import (
     Account,
     Household,
     Transaction,
+    TransactionCategory,
+    TransactionSubCategory,
+    TransactionType,
     Transfer,
 )
 
@@ -164,3 +167,141 @@ class FechaEfectivaMigrationTests(TransactionTestCase):
 
         self.assertEqual(transaction.created_at.hour, 0)
         self.assertEqual(transaction.created_at.date().isoformat(), "2026-09-01")
+
+
+class PresupuestoFase1MigrationTests(TransactionTestCase):
+    migrate_from = [("core", "0009_transaction_fecha_efectiva_not_null_and_indexes")]
+    migrate_to = [("core", "0012_transaction_metadata_fields")]
+
+    @property
+    def executor(self):
+        return MigrationExecutor(connection)
+
+    def setUp(self):
+        super().setUp()
+        executor = self.executor
+        executor.migrate(self.migrate_from)
+        old_apps = executor.loader.project_state(self.migrate_from).apps
+
+        UserModel = old_apps.get_model("auth", "User")
+        AccountModel = old_apps.get_model("core", "Account")
+        TypeModel = old_apps.get_model("core", "TransactionType")
+        CategoryModel = old_apps.get_model("core", "TransactionCategory")
+        TransactionModel = old_apps.get_model("core", "Transaction")
+
+        user = UserModel.objects.create(username="historico-fase1")
+        account = AccountModel.objects.create(user=user, name="Histórica")
+        TransactionModel.objects.create(
+            user=user,
+            account=account,
+            amount=Decimal("10.00"),
+            description="Antes de inserted_at",
+            created_at=timezone.now(),
+            fecha_efectiva=datetime(2026, 10, 20).date(),
+        )
+
+        fixed_expense, _ = TypeModel.objects.get_or_create(
+            tipo="EGRESO", subtipo="FIJO", defaults={"description": ""}
+        )
+        variable_expense, _ = TypeModel.objects.get_or_create(
+            tipo="EGRESO", subtipo="VARIABLE", defaults={"description": ""}
+        )
+        CategoryModel.objects.filter(type=fixed_expense, name="VIVIENDA").delete()
+        CategoryModel.objects.update_or_create(type=fixed_expense, name="CASA")
+        CategoryModel.objects.update_or_create(type=variable_expense, name="CASA")
+        for number in range(1, 19):
+            CategoryModel.objects.update_or_create(
+                type=variable_expense,
+                name=f"CATEGORIA {number:02d}",
+            )
+
+        executor = self.executor
+        executor.migrate(self.migrate_to)
+        self.apps = executor.loader.project_state(self.migrate_to).apps
+
+    def tearDown(self):
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def test_rename_makes_category_names_unique(self):
+        CategoryModel = self.apps.get_model("core", "TransactionCategory")
+        TypeModel = self.apps.get_model("core", "TransactionType")
+        fixed_expense = TypeModel.objects.get(tipo="EGRESO", subtipo="FIJO")
+
+        self.assertTrue(
+            CategoryModel.objects.filter(type=fixed_expense, name="VIVIENDA").exists()
+        )
+        names = list(CategoryModel.objects.values_list("name", flat=True))
+        self.assertEqual(len(names), 20)
+        self.assertEqual(len(names), len(set(names)))
+
+    def test_preexisting_transactions_keep_inserted_at_null(self):
+        TransactionModel = self.apps.get_model("core", "Transaction")
+
+        transaction = TransactionModel.objects.get(description="Antes de inserted_at")
+
+        self.assertIsNone(transaction.inserted_at)
+
+    def test_rename_is_reversible(self):
+        executor = self.executor
+        executor.migrate(self.migrate_from)
+        old_apps = executor.loader.project_state(self.migrate_from).apps
+        CategoryModel = old_apps.get_model("core", "TransactionCategory")
+        TypeModel = old_apps.get_model("core", "TransactionType")
+        fixed_expense = TypeModel.objects.get(tipo="EGRESO", subtipo="FIJO")
+
+        self.assertTrue(
+            CategoryModel.objects.filter(type=fixed_expense, name="CASA").exists()
+        )
+        self.assertFalse(
+            CategoryModel.objects.filter(type=fixed_expense, name="VIVIENDA").exists()
+        )
+
+
+class PresupuestoFase1ModelTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("fase1-model")
+        self.account = Account.objects.create(user=self.user, name="Cuenta")
+        self.type = TransactionType.objects.get(tipo="EGRESO", subtipo="FIJO")
+        self.category = TransactionCategory.objects.create(type=self.type, name="VIVIENDA")
+
+    def transaction(self, **overrides):
+        values = {
+            "user": self.user,
+            "account": self.account,
+            "amount": Decimal("-100.00"),
+            "description": "Pago",
+            "created_at": timezone.now(),
+            "fecha_efectiva": datetime(2026, 10, 20).date(),
+        }
+        values.update(overrides)
+        return Transaction(**values)
+
+    def test_subcategory_frequency_defaults_to_esporadico(self):
+        subcategory = TransactionSubCategory.objects.create(
+            category=self.category,
+            name="Reparación",
+        )
+
+        self.assertEqual(subcategory.frecuencia, "ESPORADICO")
+
+    def test_new_transaction_populates_inserted_at(self):
+        transaction = self.transaction()
+        transaction.save()
+
+        self.assertIsNotNone(transaction.inserted_at)
+
+    def test_coverage_dates_must_both_be_present(self):
+        transaction = self.transaction(cubre_desde=datetime(2026, 10, 1).date())
+
+        with self.assertRaises(ValidationError):
+            transaction.full_clean()
+
+    def test_coverage_end_must_not_precede_start(self):
+        transaction = self.transaction(
+            cubre_desde=datetime(2026, 10, 31).date(),
+            cubre_hasta=datetime(2026, 10, 1).date(),
+        )
+
+        with self.assertRaises(ValidationError):
+            transaction.full_clean()

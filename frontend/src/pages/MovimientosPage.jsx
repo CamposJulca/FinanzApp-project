@@ -19,6 +19,8 @@ const EMPTY_FORM = {
   account: "",
   subcategory: "",
   registered_by: "",
+  cubre_desde: "",
+  cubre_hasta: "",
 };
 
 export function MovimientosPage() {
@@ -109,6 +111,8 @@ export function MovimientosPage() {
       account: tx.account || "",
       subcategory: tx.subcategory || "",
       registered_by: tx.registered_by || "",
+      cubre_desde: tx.cubre_desde || "",
+      cubre_hasta: tx.cubre_hasta || "",
     });
     setStatus({ type: "idle", message: "" });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -139,6 +143,8 @@ export function MovimientosPage() {
       fecha_efectiva: form.fecha_efectiva,
       ...(form.account ? { account: Number(form.account) } : {}),
       subcategory: form.subcategory ? Number(form.subcategory) : null,
+      cubre_desde: form.cubre_desde || null,
+      cubre_hasta: form.cubre_hasta || null,
       ...(isCamposMarin ? { registered_by: form.registered_by } : {}),
     };
 
@@ -275,6 +281,27 @@ export function MovimientosPage() {
             />
           </label>
 
+          <details className="secondary-fields">
+            <summary>Periodo cubierto por este pago (opcional)</summary>
+            <div className="secondary-fields-grid">
+              <label>
+                Cubre desde
+                <input
+                  type="date"
+                  value={form.cubre_desde}
+                  onChange={setField("cubre_desde")}
+                />
+              </label>
+              <label>
+                Cubre hasta
+                <input
+                  type="date"
+                  value={form.cubre_hasta}
+                  onChange={setField("cubre_hasta")}
+                />
+              </label>
+            </div>
+          </details>
         </div>
 
         <div className="form-actions">

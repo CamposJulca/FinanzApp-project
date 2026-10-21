@@ -206,14 +206,23 @@ export function ClasificacionPage() {
           subtitle={(item) => `${item.type_name} → ${item.category_name}`}
           disabled={!selectedCategory}
           disabledHint="Selecciona una categoría para crear subcategorías"
-          onCreate={(name) =>
+          frequencyField
+          onCreate={(name, frecuencia) =>
             run(
-              () => createSubCategory({ name, category: selectedCategory }),
+              () =>
+                createSubCategory({
+                  name,
+                  category: selectedCategory,
+                  frecuencia,
+                }),
               "Subcategoría creada."
             )
           }
-          onUpdate={(id, name) =>
-            run(() => updateSubCategory(id, { name }), "Subcategoría actualizada.")
+          onUpdate={(id, name, frecuencia) =>
+            run(
+              () => updateSubCategory(id, { name, frecuencia }),
+              "Subcategoría actualizada."
+            )
           }
           onDelete={(item) => requestDelete("subcategory", item)}
         />
@@ -248,21 +257,27 @@ function TreeColumn({
   disabled = false,
   disabledHint = "",
   readOnly = false,
+  frequencyField = false,
 }) {
   const [nuevo, setNuevo] = useState("");
+  const [newFrequency, setNewFrequency] = useState("ESPORADICO");
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState("");
+  const [draftFrequency, setDraftFrequency] = useState("ESPORADICO");
 
   const handleCreate = async (event) => {
     event.preventDefault();
     if (!nuevo.trim() || !onCreate) return;
-    const ok = await onCreate(nuevo.trim());
-    if (ok) setNuevo("");
+    const ok = await onCreate(nuevo.trim(), newFrequency);
+    if (ok) {
+      setNuevo("");
+      setNewFrequency("ESPORADICO");
+    }
   };
 
   const handleSave = async (id) => {
     if (!draft.trim() || !onUpdate) return;
-    const ok = await onUpdate(id, draft.trim());
+    const ok = await onUpdate(id, draft.trim(), draftFrequency);
     if (ok) setEditingId(null);
   };
 
@@ -282,6 +297,16 @@ function TreeColumn({
             disabled={disabled}
             onChange={(event) => setNuevo(event.target.value)}
           />
+          {frequencyField && (
+            <select
+              value={newFrequency}
+              disabled={disabled}
+              aria-label="Frecuencia esperada"
+              onChange={(event) => setNewFrequency(event.target.value)}
+            >
+              <FrequencyOptions />
+            </select>
+          )}
           <button type="submit" disabled={disabled}>
             +
           </button>
@@ -306,6 +331,15 @@ function TreeColumn({
                     if (event.key === "Escape") setEditingId(null);
                   }}
                 />
+                {frequencyField && (
+                  <select
+                    value={draftFrequency}
+                    aria-label="Frecuencia esperada"
+                    onChange={(event) => setDraftFrequency(event.target.value)}
+                  >
+                    <FrequencyOptions />
+                  </select>
+                )}
                 <button type="button" onClick={() => handleSave(item.id)}>
                   ✓
                 </button>
@@ -332,6 +366,9 @@ function TreeColumn({
                   {countLabel && (
                     <span className="chip">{countLabel(item)}</span>
                   )}
+                  {frequencyField && (
+                    <span className="chip">{item.frecuencia}</span>
+                  )}
                   {!readOnly && (
                     <>
                       <button
@@ -339,6 +376,7 @@ function TreeColumn({
                         onClick={() => {
                           setEditingId(item.id);
                           setDraft(getLabel(item));
+                          setDraftFrequency(item.frecuencia || "ESPORADICO");
                         }}
                       >
                         Editar
@@ -364,6 +402,16 @@ function TreeColumn({
         )}
       </ul>
     </div>
+  );
+}
+
+function FrequencyOptions() {
+  return (
+    <>
+      <option value="ESPORADICO">Esporádico</option>
+      <option value="MENSUAL">Mensual</option>
+      <option value="ANUAL">Anual</option>
+    </>
   );
 }
 

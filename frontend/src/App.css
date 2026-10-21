@@ -395,7 +395,9 @@
 .form-grid select,
 .form-grid textarea,
 .tree-add input,
+.tree-add select,
 .tree-item-edit input,
+.tree-item-edit select,
 .money-input {
   width: 100%;
   border: 1px solid var(--line-strong);
@@ -816,6 +818,22 @@ tr.row-editing {
 .tree-item-edit input {
   flex: 1;
   min-width: 0;
+}
+
+.secondary-fields {
+  grid-column: 1 / -1;
+}
+
+.secondary-fields summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.secondary-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .tree-list li.empty-state {

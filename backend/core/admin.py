@@ -75,8 +75,8 @@ class TransactionCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(TransactionSubCategory)
 class TransactionSubCategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "category")
-    list_filter = ("category",)
+    list_display = ("id", "name", "category", "frecuencia")
+    list_filter = ("category", "frecuencia")
     search_fields = ("name",)
 
 
@@ -93,6 +93,9 @@ class TransactionAdmin(admin.ModelAdmin):
         "amount",
         "created_at",
         "fecha_efectiva",
+        "cubre_desde",
+        "cubre_hasta",
+        "inserted_at",
         "transfer",
     )
     list_filter = ("subcategory__category__type", "account", "user")
@@ -103,7 +106,7 @@ class TransactionAdmin(admin.ModelAdmin):
         if obj is not None and obj.transfer_id is not None:
             return tuple(field.name for field in self.model._meta.fields)
         # El vínculo solo lo crea el flujo atómico de transferencias.
-        return ("transfer",)
+        return ("transfer", "inserted_at")
 
     def has_change_permission(self, request, obj=None):
         if obj is not None and obj.transfer_id is not None:
