@@ -15,7 +15,7 @@ const EMPTY_FORM = {
   description: "",
   amount: "",
   type: "egreso",
-  created_at: today(),
+  fecha_efectiva: today(),
   account: "",
   subcategory: "",
   registered_by: "",
@@ -95,7 +95,7 @@ export function MovimientosPage() {
   const groupedSubcategories = groupByBranch(visibleSubcategories);
 
   const resetForm = () => {
-    setForm({ ...EMPTY_FORM, created_at: today() });
+    setForm({ ...EMPTY_FORM, fecha_efectiva: today() });
     setEditingId(null);
   };
 
@@ -105,7 +105,7 @@ export function MovimientosPage() {
       description: tx.description || "",
       amount: String(Math.abs(Number(tx.amount))),
       type: Number(tx.amount) >= 0 ? "ingreso" : "egreso",
-      created_at: (tx.created_at || "").slice(0, 10),
+      fecha_efectiva: tx.fecha_efectiva || "",
       account: tx.account || "",
       subcategory: tx.subcategory || "",
       registered_by: tx.registered_by || "",
@@ -117,7 +117,7 @@ export function MovimientosPage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!form.description.trim() || !form.amount || !form.created_at) {
+    if (!form.description.trim() || !form.amount || !form.fecha_efectiva) {
       setStatus({
         type: "error",
         message: "Completa monto, fecha y descripción.",
@@ -136,7 +136,7 @@ export function MovimientosPage() {
       description: form.description.trim(),
       amount: Number(form.amount),
       type: form.type,
-      created_at: form.created_at,
+      fecha_efectiva: form.fecha_efectiva,
       ...(form.account ? { account: Number(form.account) } : {}),
       subcategory: form.subcategory ? Number(form.subcategory) : null,
       ...(isCamposMarin ? { registered_by: form.registered_by } : {}),
@@ -201,8 +201,8 @@ export function MovimientosPage() {
             Fecha
             <input
               type="date"
-              value={form.created_at}
-              onChange={setField("created_at")}
+              value={form.fecha_efectiva}
+              onChange={setField("fecha_efectiva")}
             />
           </label>
 
@@ -274,6 +274,7 @@ export function MovimientosPage() {
               onChange={setField("description")}
             />
           </label>
+
         </div>
 
         <div className="form-actions">
@@ -320,11 +321,13 @@ export function MovimientosPage() {
             <tbody>
               {transactions.map((t) => (
                 <tr key={t.id} className={editingId === t.id ? "row-editing" : ""}>
-                  <td>{new Date(t.created_at).toLocaleDateString()}</td>
+                  <td>{t.fecha_efectiva || "—"}</td>
                   <td>{t.description}</td>
                   <td>{t.account_name}</td>
                   <td>
-                    {t.subcategory_name ? (
+                    {t.transfer ? (
+                      <span className="chip">Transferencia</span>
+                    ) : t.subcategory_name ? (
                       <span className="chip" title={t.subcategory_path || ""}>
                         {t.subcategory_path || t.subcategory_name}
                       </span>
@@ -348,16 +351,22 @@ export function MovimientosPage() {
                     ${Number(t.amount).toLocaleString()}
                   </td>
                   <td className="row-actions">
-                    <button type="button" onClick={() => startEdit(t)}>
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => handleDelete(t)}
-                    >
-                      Eliminar
-                    </button>
+                    {t.transfer ? (
+                      <span className="muted">Gestionar como transferencia</span>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => startEdit(t)}>
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => handleDelete(t)}
+                        >
+                          Eliminar
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}

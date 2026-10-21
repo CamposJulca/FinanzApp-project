@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.models import (
     Account,
+    Transfer,
     Transaction,
     TransactionType,
     TransactionCategory,
@@ -21,6 +22,7 @@ from core.models import (
 )
 from .serializers import (
     AccountSerializer,
+    TransferSerializer,
     TransactionSerializer,
     TransactionTypeSerializer,
     TransactionCategorySerializer,
@@ -93,17 +95,29 @@ def summary(request):
     # -------------------------------
     ingresos = (
         Transaction.objects
-        .filter(user=user, amount__gt=0)
+        .filter(user=user, amount__gt=0, transfer__isnull=True)
         .aggregate(total=Sum("amount"))["total"] or Decimal("0")
     )
 
     egresos = (
         Transaction.objects
-        .filter(user=user, amount__lt=0)
+        .filter(user=user, amount__lt=0, transfer__isnull=True)
         .aggregate(total=Sum("amount"))["total"] or Decimal("0")
     )
 
-    saldo_contable = ingresos + egresos
+    neto_transferencias = (
+        Transaction.objects
+        .filter(user=user, transfer__isnull=False)
+        .aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    )
+
+    # La transferencia no es ingreso ni gasto, pero cada pierna sí mueve el
+    # saldo del propietario de esa cuenta. La conciliación debe incluirlas.
+    saldo_contable = (
+        Transaction.objects
+        .filter(user=user)
+        .aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    )
     total_movimientos = Transaction.objects.filter(user=user).count()
 
     # --------------------------------
@@ -126,6 +140,7 @@ def summary(request):
     return Response({
         "ingresos": float(ingresos),
         "egresos": abs(float(egresos)),
+        "neto_transferencias": float(neto_transferencias),
 
         "saldo_contable": float(saldo_contable),
         "saldo_cuentas": float(saldo_cuentas),
@@ -202,16 +217,54 @@ class TransactionDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Transaction.objects.filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.transfer_id is not None:
+            return self._transfer_leg_conflict(instance)
         data = _normalize_transaction_payload(
             request.data, request.user, partial=kwargs.get("partial", False)
         )
-        instance = self.get_object()
         serializer = self.get_serializer(
             instance, data=data, partial=kwargs.get("partial", False)
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.transfer_id is not None:
+            return self._transfer_leg_conflict(instance)
+        return super().destroy(request, *args, **kwargs)
+
+    @staticmethod
+    def _transfer_leg_conflict(instance):
+        return Response(
+            {
+                "error": (
+                    "Este movimiento es una pierna de transferencia y no puede "
+                    "editarse ni borrarse por separado. Usa "
+                    f"/api/transactions/transfers/{instance.transfer_id}/."
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+
+class TransferCreateView(generics.CreateAPIView):
+    """Registra una transferencia completa; no se admite edición posterior."""
+
+    serializer_class = TransferSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class TransferDestroyView(generics.DestroyAPIView):
+    """Borra la transferencia y sus dos legs; no expone PATCH ni PUT."""
+
+    serializer_class = TransferSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Transfer.objects.filter(household__members=self.request.user).distinct()
 
 
 def _normalize_transaction_payload(data, user, partial=False):
@@ -266,6 +319,20 @@ class AccountDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         account = self.get_object()
+        transfers_count = (
+            account.transfers_out.count() + account.transfers_in.count()
+        )
+        if transfers_count:
+            return Response(
+                {
+                    "error": (
+                        f"La cuenta participa en {transfers_count} transferencia(s) "
+                        "y no puede eliminarse. Borra primero esas transferencias."
+                    ),
+                    "transfers_count": transfers_count,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         movimientos = account.transactions.count()
 
         # Account.transactions tiene on_delete=CASCADE: borrar la cuenta se
@@ -382,7 +449,10 @@ def _impact(node, user):
     leaves = _leaves_of(node)
     leaf_ids = [leaf.id for leaf in leaves]
 
-    todas = Transaction.objects.filter(subcategory_id__in=leaf_ids)
+    todas = Transaction.objects.filter(
+        subcategory_id__in=leaf_ids,
+        transfer__isnull=True,
+    )
     propias = todas.filter(user=user)
     total = todas.count()
 
@@ -477,7 +547,8 @@ def _resolve_transactions(node, request):
         )
 
     afectados = Transaction.objects.filter(
-        subcategory_id__in=[leaf.id for leaf in _leaves_of(node)]
+        subcategory_id__in=[leaf.id for leaf in _leaves_of(node)],
+        transfer__isnull=True,
     )
 
     if strategy == STRATEGY_UNCLASSIFY:

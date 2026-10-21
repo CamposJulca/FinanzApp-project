@@ -13,9 +13,9 @@ export function CuentasPage() {
   const { refreshSummary } = useOutletContext();
 
   const [accounts, setAccounts] = useState([]);
-  const [nueva, setNueva] = useState({ name: "", saldo_real: "" });
+  const [nueva, setNueva] = useState({ name: "", saldo_real: "", currency: "COP" });
   const [editingId, setEditingId] = useState(null);
-  const [draft, setDraft] = useState({ name: "", saldo_real: "" });
+  const [draft, setDraft] = useState({ name: "", saldo_real: "", currency: "COP" });
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [loading, setLoading] = useState(true);
 
@@ -47,8 +47,9 @@ export function CuentasPage() {
       await createAccount({
         name: nueva.name.trim(),
         saldo_real: nueva.saldo_real || "0",
+        currency: nueva.currency,
       });
-      setNueva({ name: "", saldo_real: "" });
+      setNueva({ name: "", saldo_real: "", currency: "COP" });
       setStatus({ type: "success", message: "Cuenta creada." });
       await load();
       await refreshSummary();
@@ -59,7 +60,11 @@ export function CuentasPage() {
 
   const startEdit = (account) => {
     setEditingId(account.id);
-    setDraft({ name: account.name, saldo_real: String(account.saldo_real) });
+    setDraft({
+      name: account.name,
+      saldo_real: String(account.saldo_real),
+      currency: account.currency || "COP",
+    });
     setStatus({ type: "idle", message: "" });
   };
 
@@ -69,6 +74,7 @@ export function CuentasPage() {
       await updateAccount(id, {
         name: draft.name.trim(),
         saldo_real: draft.saldo_real || "0",
+        currency: draft.currency,
       });
       setEditingId(null);
       setStatus({ type: "success", message: "Cuenta actualizada." });
@@ -146,6 +152,18 @@ export function CuentasPage() {
               onChange={(e) => setNueva({ ...nueva, saldo_real: e.target.value })}
             />
           </label>
+
+          <label>
+            Moneda
+            <input
+              type="text"
+              maxLength={3}
+              value={nueva.currency}
+              onChange={(e) =>
+                setNueva({ ...nueva, currency: e.target.value.toUpperCase() })
+              }
+            />
+          </label>
         </div>
 
         <div className="form-actions">
@@ -176,6 +194,7 @@ export function CuentasPage() {
               <tr>
                 <th align="left">Cuenta</th>
                 <th align="right">Saldo real</th>
+                <th align="left">Moneda</th>
                 <th align="right">Movimientos</th>
                 <th align="right">Acciones</th>
               </tr>
@@ -213,6 +232,23 @@ export function CuentasPage() {
                         money(account.saldo_real)
                       )}
                     </td>
+                    <td>
+                      {editing ? (
+                        <input
+                          type="text"
+                          maxLength={3}
+                          value={draft.currency}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              currency: e.target.value.toUpperCase(),
+                            })
+                          }
+                        />
+                      ) : (
+                        account.currency
+                      )}
+                    </td>
                     <td align="right">{account.transactions_count}</td>
                     <td className="row-actions">
                       {editing ? (
@@ -248,14 +284,14 @@ export function CuentasPage() {
               })}
               {!loading && accounts.length === 0 && (
                 <tr>
-                  <td className="empty-state" colSpan={4}>
+                  <td className="empty-state" colSpan={5}>
                     Sin cuentas. Crea la primera arriba.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td className="empty-state" colSpan={4}>
+                  <td className="empty-state" colSpan={5}>
                     Cargando...
                   </td>
                 </tr>

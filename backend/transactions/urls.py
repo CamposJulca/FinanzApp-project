@@ -8,6 +8,8 @@ from .views import (
     AccountListCreateView,
     AccountDetailView,
     AccountSaldoRealUpdateView,
+    TransferCreateView,
+    TransferDestroyView,
     TransactionTypeListCreateView,
     TransactionTypeDetailView,
     TransactionCategoryListCreateView,
@@ -43,6 +45,10 @@ urlpatterns = [
         AccountSaldoRealUpdateView.as_view(),
         name="account-saldo-real-update",
     ),
+
+    # Transferencias: crear o borrar el par completo; no existe edición.
+    path("transfers/", TransferCreateView.as_view(), name="transfers-create"),
+    path("transfers/<int:pk>/", TransferDestroyView.as_view(), name="transfers-delete"),
 
     # Transacciones (rutas genéricas al final para no tapar las anteriores)
     path("", TransactionListCreateView.as_view(), name="transactions-list"),

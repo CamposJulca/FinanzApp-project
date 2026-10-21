@@ -31,6 +31,7 @@ export function DashboardPage() {
           title="Resultado del período"
           value={summary.saldo_contable}
           tone="result"
+          secondary={`Transferencias netas: ${money(summary.neto_transferencias)}`}
         />
       </div>
 
@@ -88,13 +89,14 @@ function Shortcut({ to, title, copy }) {
   );
 }
 
-function KpiCard({ title, value, tone }) {
+function KpiCard({ title, value, tone, secondary }) {
   return (
     <div className={`kpi-card ${tone}`}>
       <div className="kpi-topline">
         <strong>{title}</strong>
       </div>
       <div className="kpi-value">{money(value)}</div>
+      {secondary && <div className="muted">{secondary}</div>}
     </div>
   );
 }

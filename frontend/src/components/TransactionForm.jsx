@@ -11,7 +11,7 @@ export function TransactionForm({
 }) {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [createdAt, setCreatedAt] = useState(today);
+  const [fechaEfectiva, setFechaEfectiva] = useState(today);
   const [type, setType] = useState("egreso");
   const [registeredBy, setRegisteredBy] = useState("");
   const [status, setStatus] = useState({ type: "idle", message: "" });
@@ -29,7 +29,7 @@ export function TransactionForm({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!description.trim() || !amount || !createdAt) {
+    if (!description.trim() || !amount || !fechaEfectiva) {
       setStatus({
         type: "error",
         message: "Completa monto, fecha y descripción.",
@@ -51,7 +51,7 @@ export function TransactionForm({
       await createTransaction({
         description: description.trim(),
         amount: Number(amount),
-        created_at: createdAt,
+        fecha_efectiva: fechaEfectiva,
         type,
         source: "manual",
         ...(isCamposMarin ? { registered_by: registeredBy } : {}),
@@ -59,7 +59,7 @@ export function TransactionForm({
 
       setDescription("");
       setAmount("");
-      setCreatedAt(today);
+      setFechaEfectiva(today);
       setType("egreso");
       setRegisteredBy("");
       setStatus({ type: "success", message: "Movimiento guardado." });
@@ -97,8 +97,8 @@ export function TransactionForm({
           Fecha
           <input
             type="date"
-            value={createdAt}
-            onChange={(event) => setCreatedAt(event.target.value)}
+            value={fechaEfectiva}
+            onChange={(event) => setFechaEfectiva(event.target.value)}
           />
         </label>
 

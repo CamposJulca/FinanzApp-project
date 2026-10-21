@@ -1,12 +1,93 @@
 from rest_framework import serializers
+from django.db import transaction as db_transaction
+from django.utils import timezone
+from datetime import datetime, time
 
 from core.models import (
     Account,
+    Transfer,
     Transaction,
     TransactionType,
     TransactionCategory,
     TransactionSubCategory,
 )
+
+
+class TransferSerializer(serializers.ModelSerializer):
+    """Crea el par completo; las transferencias no se editan, se recrean."""
+
+    class Meta:
+        model = Transfer
+        fields = (
+            "id",
+            "household",
+            "from_account",
+            "to_account",
+            "amount",
+            "fecha",
+            "description",
+            "created_by",
+            "created_at",
+        )
+        read_only_fields = ("created_by", "created_at")
+
+    def validate(self, attrs):
+        household = attrs["household"]
+        from_account = attrs["from_account"]
+        to_account = attrs["to_account"]
+        amount = attrs["amount"]
+        user = self.context["request"].user
+        errors = {}
+
+        if not household.members.filter(pk=user.pk).exists():
+            errors["household"] = "No perteneces al hogar indicado."
+        if from_account.pk == to_account.pk:
+            errors["to_account"] = "La cuenta destino debe ser distinta de la cuenta origen."
+        if amount <= 0:
+            errors["amount"] = "El monto debe ser mayor que cero."
+        if not household.members.filter(pk=from_account.user_id).exists():
+            errors["from_account"] = "La cuenta origen no pertenece al hogar indicado."
+        if not household.members.filter(pk=to_account.user_id).exists():
+            errors["to_account"] = "La cuenta destino no pertenece al hogar indicado."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        with db_transaction.atomic():
+            transfer = Transfer(**validated_data, created_by=user)
+            transfer.save()
+            created_at = timezone.make_aware(
+                datetime.combine(transfer.fecha, time.min),
+                timezone.get_current_timezone(),
+            )
+            Transaction.objects.bulk_create(
+                [
+                    Transaction(
+                        user=transfer.from_account.user,
+                        account=transfer.from_account,
+                        transfer=transfer,
+                        subcategory=None,
+                        amount=-transfer.amount,
+                        description=transfer.description,
+                        created_at=created_at,
+                        fecha_efectiva=transfer.fecha,
+                    ),
+                    Transaction(
+                        user=transfer.to_account.user,
+                        account=transfer.to_account,
+                        transfer=transfer,
+                        subcategory=None,
+                        amount=transfer.amount,
+                        description=transfer.description,
+                        created_at=created_at,
+                        fecha_efectiva=transfer.fecha,
+                    ),
+                ]
+            )
+        return transfer
 
 
 # =========================================================
@@ -78,7 +159,14 @@ class AccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Account
-        fields = ("id", "name", "saldo_real", "transactions_count", "created_at")
+        fields = (
+            "id",
+            "name",
+            "saldo_real",
+            "currency",
+            "transactions_count",
+            "created_at",
+        )
         read_only_fields = ("created_at",)
 
     def validate_name(self, value):
@@ -123,13 +211,20 @@ class TransactionSerializer(serializers.ModelSerializer):
             "amount",
             "type",
             "created_at",
+            "fecha_efectiva",
             "account",
             "account_name",
             "subcategory",
             "subcategory_name",
             "subcategory_path",
+            "transfer",
             "registered_by",
         )
+        extra_kwargs = {
+            "fecha_efectiva": {"required": False},
+            "created_at": {"required": False},
+            "transfer": {"read_only": True},
+        }
 
     def get_subcategory_path(self, obj):
         """Ruta completa TIPO / SUBTIPO -> Categoría -> Subcategoría.
@@ -195,6 +290,16 @@ class TransactionSerializer(serializers.ModelSerializer):
         esta validación la API sigue aceptando un ingreso clasificado como
         "EGRESO / FIJO -> CARRO -> SOAT".
         """
+        if self.instance is None and "created_at" not in attrs:
+            attrs["created_at"] = timezone.now()
+        if "fecha_efectiva" not in attrs and self.instance is None:
+            created_at = attrs["created_at"]
+            attrs["fecha_efectiva"] = (
+                timezone.localtime(created_at).date()
+                if timezone.is_aware(created_at)
+                else created_at.date()
+            )
+
         subcategory = (
             attrs["subcategory"]
             if "subcategory" in attrs
@@ -202,6 +307,8 @@ class TransactionSerializer(serializers.ModelSerializer):
         )
         amount = self._final_amount(attrs)
 
+        # Los legs de transferencia siempre carecen de subcategoría, por lo
+        # que salen aquí sin relajar la coherencia de signo del resto.
         if subcategory is None or amount is None:
             return attrs
 

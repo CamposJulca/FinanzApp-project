@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Household,
     Account,
+    Transfer,
     Transaction,
     TransactionType,
     TransactionCategory,
@@ -27,10 +28,33 @@ class AccountAdmin(admin.ModelAdmin):
         "name",
         "user",
         "saldo_real",
+        "currency",
         "created_at",
     )
-    list_filter = ("user",)
+    list_filter = ("user", "currency")
     search_fields = ("name",)
+
+
+@admin.register(Transfer)
+class TransferAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "household",
+        "from_account",
+        "to_account",
+        "amount",
+        "fecha",
+        "created_by",
+    )
+    list_filter = ("household", "fecha")
+
+    def has_add_permission(self, request):
+        # Crear fuera del endpoint dejaría la transferencia sin sus dos legs.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # Corregir exige borrar el par completo y volver a crearlo.
+        return False
 
 
 # =========================
@@ -68,7 +92,30 @@ class TransactionAdmin(admin.ModelAdmin):
         "subcategory",
         "amount",
         "created_at",
+        "fecha_efectiva",
+        "transfer",
     )
     list_filter = ("subcategory__category__type", "account", "user")
     search_fields = ("description",)
     ordering = ("-created_at",)
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None and obj.transfer_id is not None:
+            return tuple(field.name for field in self.model._meta.fields)
+        # El vínculo solo lo crea el flujo atómico de transferencias.
+        return ("transfer",)
+
+    def has_change_permission(self, request, obj=None):
+        if obj is not None and obj.transfer_id is not None:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and obj.transfer_id is not None:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions

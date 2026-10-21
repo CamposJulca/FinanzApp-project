@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 
 
 # =========================
@@ -51,10 +52,62 @@ class Account(models.Model):
         help_text="Saldo real declarado manualmente por el usuario"
     )
 
+    currency = models.CharField(max_length=3, default="COP")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.name} ({self.user.username})"
+
+
+class Transfer(models.Model):
+    """Movimiento entre dos cuentas de un hogar; se corrige borrando y recreando."""
+
+    household = models.ForeignKey(Household, on_delete=models.PROTECT)
+    from_account = models.ForeignKey(
+        Account,
+        related_name="transfers_out",
+        on_delete=models.PROTECT,
+    )
+    to_account = models.ForeignKey(
+        Account,
+        related_name="transfers_in",
+        on_delete=models.PROTECT,
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    fecha = models.DateField()
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        User,
+        related_name="transfers_created",
+        on_delete=models.PROTECT,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        errors = {}
+        if self.from_account_id and self.from_account_id == self.to_account_id:
+            errors["to_account"] = "La cuenta destino debe ser distinta de la cuenta origen."
+        if self.amount is not None and self.amount <= 0:
+            errors["amount"] = "El monto debe ser mayor que cero."
+        if self.household_id:
+            if self.from_account_id and not self.household.members.filter(
+                pk=self.from_account.user_id
+            ).exists():
+                errors["from_account"] = "La cuenta origen no pertenece a este hogar."
+            if self.to_account_id and not self.household.members.filter(
+                pk=self.to_account.user_id
+            ).exists():
+                errors["to_account"] = "La cuenta destino no pertenece a este hogar."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.from_account} → {self.to_account}: {self.amount}"
 
 
 # =========================
@@ -176,6 +229,13 @@ class Transaction(models.Model):
         null=True,
         blank=True
     )
+    transfer = models.ForeignKey(
+        Transfer,
+        on_delete=models.CASCADE,
+        related_name="legs",
+        null=True,
+        blank=True,
+    )
 
 
     amount = models.DecimalField(
@@ -184,6 +244,7 @@ class Transaction(models.Model):
     )
     description = models.TextField(blank=True)
     created_at = models.DateTimeField()
+    fecha_efectiva = models.DateField()
     registered_by = models.CharField(
         max_length=20,
         choices=REGISTERED_BY_CHOICES,
@@ -194,3 +255,9 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.amount} - {self.subcategory}"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "fecha_efectiva"]),
+            models.Index(fields=["subcategory", "fecha_efectiva"]),
+        ]

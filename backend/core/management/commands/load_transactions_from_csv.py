@@ -130,7 +130,8 @@ class Command(BaseCommand):
                         account=account,
                         amount=monto,
                         description=descripcion,
-                        created_at=fecha
+                        created_at=fecha,
+                        fecha_efectiva=timezone.localdate(fecha),
                     )
 
                     created += 1

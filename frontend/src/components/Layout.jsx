@@ -12,6 +12,7 @@ const MODULES = [
 const EMPTY_SUMMARY = {
   ingresos: 0,
   egresos: 0,
+  neto_transferencias: 0,
   saldo_contable: 0,
   saldo_cuentas: 0,
   diferencia: 0,

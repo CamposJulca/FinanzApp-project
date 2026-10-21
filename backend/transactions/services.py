@@ -1,5 +1,6 @@
 from core.models import Transaction
 from django.db.models import Sum
+from django.utils import timezone
 from core.models import Account, Transaction
 
 
@@ -49,6 +50,7 @@ def get_transactions(user):
 
 def create_transaction(data: dict, user):
     amount = float(data["amount"])
+    created_at = data.get("created_at")
 
     # Si viene marcado como egreso, lo guardamos negativo
     if data.get("type") == "E":
@@ -59,7 +61,8 @@ def create_transaction(data: dict, user):
         account=user.accounts.first(),  # cuenta por defecto
         amount=amount,
         description=data.get("description", ""),
-        created_at=data.get("created_at"),
+        created_at=created_at,
+        fecha_efectiva=timezone.localdate(created_at),
     )
 
     return {

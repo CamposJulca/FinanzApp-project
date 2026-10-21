@@ -81,6 +81,7 @@ class Command(BaseCommand):
         # 6. Inserción de transacciones
         created_count = 0
         for item, tipo, valor, fecha, descripcion in raw_data:
+            created_at = make_aware(datetime.strptime(fecha, "%Y-%m-%d"))
             subcategory, _ = TransactionSubCategory.objects.get_or_create(
                 category=categories[tipo],
                 name=item
@@ -91,7 +92,8 @@ class Command(BaseCommand):
                 subcategory=subcategory,
                 amount=Decimal(valor),
                 description=descripcion,
-                created_at=make_aware(datetime.strptime(fecha, "%Y-%m-%d"))
+                created_at=created_at,
+                fecha_efectiva=created_at.date(),
 
             )
             created_count += 1
