@@ -4,6 +4,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { MovimientosPage } from "./pages/MovimientosPage";
 import { CuentasPage } from "./pages/CuentasPage";
 import { ClasificacionPage } from "./pages/ClasificacionPage";
+import { PresupuestoPage } from "./pages/PresupuestoPage";
 import "./App.css";
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
         <Route path="movimientos" element={<MovimientosPage />} />
         <Route path="cuentas" element={<CuentasPage />} />
         <Route path="clasificacion" element={<ClasificacionPage />} />
+        <Route path="presupuesto" element={<PresupuestoPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

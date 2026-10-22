@@ -1,10 +1,12 @@
 from datetime import datetime
+import calendar
 from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date, parse_datetime
+from django.utils import timezone
 from django.utils.timezone import get_current_timezone, is_naive, make_aware
 
 from rest_framework import generics, status
@@ -14,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.models import (
     Account,
+    Budget,
     Transfer,
     Transaction,
     TransactionType,
@@ -22,12 +25,76 @@ from core.models import (
 )
 from .serializers import (
     AccountSerializer,
+    BudgetSerializer,
     TransferSerializer,
     TransactionSerializer,
     TransactionTypeSerializer,
     TransactionCategorySerializer,
     TransactionSubCategorySerializer,
 )
+from .budgets import monthly_consumption
+
+
+def _read_household(request):
+    """Infer only reads; writes always carry household in their payload."""
+    households = request.user.households.order_by("id")
+    requested = request.query_params.get("household")
+    if requested:
+        household = households.filter(pk=requested).first()
+        if household is None:
+            return None, Response({"household": "No perteneces al hogar indicado."}, status=400)
+        return household, None
+    if households.count() == 1:
+        return households.first(), None
+    return None, Response({
+        "error": "Indica household porque perteneces a más de un hogar.",
+        "households": list(households.values("id", "name")),
+    }, status=400)
+
+
+class BudgetListCreateView(generics.ListCreateAPIView):
+    serializer_class = BudgetSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        household, error = _read_household(self.request)
+        if error:
+            return Budget.objects.none()
+        return Budget.objects.filter(household=household).select_related("category__type")
+
+    def list(self, request, *args, **kwargs):
+        _, error = _read_household(request)
+        return error or super().list(request, *args, **kwargs)
+
+
+class BudgetDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = BudgetSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Budget.objects.filter(household__members=self.request.user).select_related("category__type")
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def budget_consumption(request):
+    household, error = _read_household(request)
+    if error:
+        return error
+    today = timezone.localdate()
+    default_from = today.replace(day=1)
+    default_to = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+    raw_desde = request.query_params.get("desde")
+    raw_hasta = request.query_params.get("hasta")
+    desde = parse_date(raw_desde) if raw_desde else default_from
+    hasta = parse_date(raw_hasta) if raw_hasta else default_to
+    if desde is None or hasta is None:
+        return Response({"error": "desde y hasta deben ser fechas válidas en formato YYYY-MM-DD."}, status=400)
+    if desde > hasta:
+        return Response({"error": "desde no puede ser posterior a hasta."}, status=400)
+    if (desde.year, desde.month) != (hasta.year, hasta.month):
+        return Response({"error": "desde y hasta deben pertenecer al mismo mes calendario."}, status=400)
+    return Response(monthly_consumption(household, desde, hasta))
 
 
 # Cuentas con las que se inicializa un usuario que aún no tiene ninguna.

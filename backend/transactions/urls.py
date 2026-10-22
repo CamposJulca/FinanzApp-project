@@ -8,6 +8,9 @@ from .views import (
     AccountListCreateView,
     AccountDetailView,
     AccountSaldoRealUpdateView,
+    BudgetListCreateView,
+    BudgetDetailView,
+    budget_consumption,
     TransferCreateView,
     TransferDestroyView,
     TransactionTypeListCreateView,
@@ -45,6 +48,10 @@ urlpatterns = [
         AccountSaldoRealUpdateView.as_view(),
         name="account-saldo-real-update",
     ),
+
+    path("budgets/consumo/", budget_consumption, name="budgets-consumption"),
+    path("budgets/", BudgetListCreateView.as_view(), name="budgets-list"),
+    path("budgets/<int:pk>/", BudgetDetailView.as_view(), name="budget-detail"),
 
     # Transferencias: crear o borrar el par completo; no existe edición.
     path("transfers/", TransferCreateView.as_view(), name="transfers-create"),

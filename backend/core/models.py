@@ -1,6 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.contrib.postgres.constraints import ExclusionConstraint
+from django.contrib.postgres.fields import RangeOperators
+from django.db.models import F, Func, Value
+from datetime import date
 
 
 # =========================
@@ -210,6 +214,71 @@ class TransactionSubCategory(models.Model):
         return f"{self.category} → {self.name}"
 
 
+class Budget(models.Model):
+    """Tope con vigencia histórica; cambiarlo no crea una fila por mes.
+
+    Un cambio futuro cierra la vigencia anterior y abre una nueva, por lo que
+    el historial permanece verificable sin duplicar topes mensualmente.
+    """
+
+    household = models.ForeignKey(Household, related_name="budgets", on_delete=models.CASCADE)
+    category = models.ForeignKey(TransactionCategory, on_delete=models.PROTECT)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    currency = models.CharField(max_length=3, default="COP")
+    valid_from = models.DateField()
+    valid_to = models.DateField(null=True, blank=True)
+    note = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.category_id and self.category.type.tipo != TransactionType.TIPO_EGRESO:
+            errors["category"] = "Solo se permiten categorías de EGRESO."
+        if self.amount is not None and self.amount <= 0:
+            errors["amount"] = "El tope debe ser mayor que cero."
+        if self.valid_to and self.valid_to < self.valid_from:
+            errors["valid_to"] = "La fecha final no puede ser anterior a la inicial."
+        if self.household_id and self.category_id and self.valid_from:
+            overlap = Budget.objects.filter(
+                household_id=self.household_id,
+                category_id=self.category_id,
+                valid_from__lte=self.valid_to or date.max,
+            ).filter(models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=self.valid_from))
+            if self.pk:
+                overlap = overlap.exclude(pk=self.pk)
+            if overlap.exists():
+                errors["valid_from"] = "La vigencia se solapa con otro tope de esta categoría."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ("category__name", "-valid_from")
+        constraints = [
+            ExclusionConstraint(
+                name="budget_no_overlapping_validity",
+                expressions=[
+                    (F("household"), RangeOperators.EQUAL),
+                    (F("category"), RangeOperators.EQUAL),
+                    (
+                        Func(F("valid_from"), F("valid_to"), Value("[]"), function="DATERANGE"),
+                        RangeOperators.OVERLAPS,
+                    ),
+                ],
+            ),
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name="budget_amount_positive"),
+            models.CheckConstraint(
+                condition=models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=F("valid_from")),
+                name="budget_validity_order",
+            ),
+        ]
+
+
 # =========================
 # Transacciones
 # =========================
@@ -230,6 +299,11 @@ class Transaction(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="transactions"
+    )
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.PROTECT,
+        related_name="transactions",
     )
     account = models.ForeignKey(
         Account,
@@ -308,4 +382,5 @@ class Transaction(models.Model):
         indexes = [
             models.Index(fields=["user", "fecha_efectiva"]),
             models.Index(fields=["subcategory", "fecha_efectiva"]),
+            models.Index(fields=["household", "fecha_efectiva"]),
         ]

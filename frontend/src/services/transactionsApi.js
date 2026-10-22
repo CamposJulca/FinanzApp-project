@@ -77,6 +77,18 @@ export const fetchMe = () => request("me/");
 export const fetchSummary = () => request("summary/");
 
 // ============================
+// PRESUPUESTOS
+// ============================
+export const fetchBudgetConsumption = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`budgets/consumo/${qs ? `?${qs}` : ""}`);
+};
+export const createBudget = (payload) =>
+  request("budgets/", { method: "POST", body: payload });
+export const updateBudget = (id, payload) =>
+  request(`budgets/${id}/`, { method: "PATCH", body: payload });
+
+// ============================
 // CUENTAS
 // ============================
 export const fetchAccounts = () => request("accounts/");

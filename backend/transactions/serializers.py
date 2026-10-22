@@ -1,10 +1,13 @@
 from rest_framework import serializers
 from django.db import transaction as db_transaction
+from django.db.models import Q
 from django.utils import timezone
-from datetime import datetime, time
+from datetime import date, datetime, time, timedelta
 
 from core.models import (
     Account,
+    Budget,
+    Household,
     Transfer,
     Transaction,
     TransactionType,
@@ -67,6 +70,7 @@ class TransferSerializer(serializers.ModelSerializer):
                 [
                     Transaction(
                         user=transfer.from_account.user,
+                        household=transfer.household,
                         account=transfer.from_account,
                         transfer=transfer,
                         subcategory=None,
@@ -77,6 +81,7 @@ class TransferSerializer(serializers.ModelSerializer):
                     ),
                     Transaction(
                         user=transfer.to_account.user,
+                        household=transfer.household,
                         account=transfer.to_account,
                         transfer=transfer,
                         subcategory=None,
@@ -185,6 +190,74 @@ class AccountSerializer(serializers.ModelSerializer):
         return name
 
 
+class BudgetSerializer(serializers.ModelSerializer):
+    """Escrituras exigen hogar; las lecturas inequívocas pueden inferirlo.
+
+    La asimetría es intencional: una lectura ambigua no deja rastro, mientras
+    que una escritura ambigua crearía historia financiera persistente.
+    """
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    subtipo = serializers.CharField(source="category.type.subtipo", read_only=True)
+
+    class Meta:
+        model = Budget
+        fields = (
+            "id", "household", "category", "category_name", "subtipo",
+            "amount", "currency", "valid_from", "valid_to", "note",
+            "created_by", "created_at",
+        )
+        read_only_fields = ("created_by", "created_at")
+
+    def validate(self, attrs):
+        household = attrs.get("household", getattr(self.instance, "household", None))
+        category = attrs.get("category", getattr(self.instance, "category", None))
+        errors = {}
+        if self.instance is None and "household" not in attrs:
+            errors["household"] = "El hogar es obligatorio en escrituras."
+        elif household and not household.members.filter(pk=self.context["request"].user.pk).exists():
+            errors["household"] = "No perteneces al hogar indicado."
+        if category and category.type.tipo != TransactionType.TIPO_EGRESO:
+            errors["category"] = "Solo se permiten categorías de EGRESO."
+        amount = attrs.get("amount", getattr(self.instance, "amount", None))
+        if amount is not None and amount <= 0:
+            errors["amount"] = "El tope debe ser mayor que cero."
+        start = attrs.get("valid_from", getattr(self.instance, "valid_from", None))
+        end = attrs.get("valid_to", getattr(self.instance, "valid_to", None))
+        if start and end and end < start:
+            errors["valid_to"] = "La fecha final no puede ser anterior a la inicial."
+        if household and category and start:
+            overlap = Budget.objects.filter(
+                household=household, category=category,
+                valid_from__lte=end or date.max,
+            ).filter(Q(valid_to__isnull=True) | Q(valid_to__gte=start))
+            if self.instance:
+                overlap = overlap.exclude(pk=self.instance.pk)
+            if self.instance is None and start > timezone.localdate():
+                previous = overlap.filter(valid_from__lt=start, valid_to__isnull=True).order_by("-valid_from").first()
+                if previous:
+                    overlap = overlap.exclude(pk=previous.pk)
+            if overlap.exists():
+                errors["valid_from"] = "La vigencia se solapa con otro tope de esta categoría."
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+    def create(self, validated_data):
+        with db_transaction.atomic():
+            previous = None
+            if validated_data["valid_from"] > timezone.localdate():
+                previous = Budget.objects.select_for_update().filter(
+                    household=validated_data["household"], category=validated_data["category"],
+                    valid_from__lt=validated_data["valid_from"], valid_to__isnull=True,
+                ).order_by("-valid_from").first()
+            if previous:
+                previous.valid_to = validated_data["valid_from"] - timedelta(days=1)
+                previous.save(update_fields=("valid_to",))
+            budget = Budget(**validated_data, created_by=self.context["request"].user)
+            budget.save()
+            return budget
+
+
 # =========================================================
 # TRANSACCIONES
 # =========================================================
@@ -216,6 +289,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "cubre_hasta",
             "inserted_at",
             "account",
+            "household",
             "account_name",
             "subcategory",
             "subcategory_name",
@@ -228,6 +302,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "created_at": {"required": False},
             "transfer": {"read_only": True},
             "inserted_at": {"read_only": True},
+            "household": {"required": False},
         }
 
     def get_subcategory_path(self, obj):
@@ -303,6 +378,27 @@ class TransactionSerializer(serializers.ModelSerializer):
                 if timezone.is_aware(created_at)
                 else created_at.date()
             )
+
+        account = attrs.get("account", getattr(self.instance, "account", None))
+        household = attrs.get("household", getattr(self.instance, "household", None))
+        if account is not None:
+            memberships = Household.objects.filter(members=account.user)
+            if household is None:
+                count = memberships.count()
+                if count == 1:
+                    attrs["household"] = memberships.first()
+                elif count > 1:
+                    raise serializers.ValidationError(
+                        {"household": "La cuenta pertenece a varios hogares; indica household."}
+                    )
+                else:
+                    raise serializers.ValidationError(
+                        {"household": "El propietario de la cuenta no pertenece a ningún hogar."}
+                    )
+            elif not household.members.filter(pk=account.user_id).exists():
+                raise serializers.ValidationError(
+                    {"household": "El propietario de la cuenta no pertenece al hogar indicado."}
+                )
 
         cubre_desde = attrs.get(
             "cubre_desde", getattr(self.instance, "cubre_desde", None)

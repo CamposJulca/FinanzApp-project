@@ -38,6 +38,23 @@
   --numeric: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+.budget-history { color: var(--muted, #64748b); margin-bottom: 1rem; }
+.budget-table { width: 100%; border-collapse: collapse; }
+.budget-table th, .budget-table td { padding: .85rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+.budget-table td small { display: block; color: #64748b; margin-top: .25rem; }
+.budget-notice { display: block; color: #9a5b00; font-size: .75rem; margin-top: .25rem; }
+.budget-progress { width: 11rem; max-width: 100%; height: .55rem; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.budget-progress span { display: block; height: 100%; }
+.budget-progress .green { background: #16a34a; }
+.budget-progress .amber { background: #d97706; }
+.budget-progress .red { background: #dc2626; }
+.budget-progress .neutral { background: #94a3b8; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1rem; background: rgba(15, 23, 42, .55); }
+.budget-modal { width: min(28rem, 100%); padding: 1.5rem; border-radius: 1rem; background: white; box-shadow: 0 24px 70px rgba(0,0,0,.25); }
+.budget-modal label { display: grid; gap: .35rem; margin-top: 1rem; }
+.budget-modal input, .budget-modal textarea { padding: .7rem; border: 1px solid #cbd5e1; border-radius: .5rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1.25rem; }
+
 /* =========================================================
    ESTRUCTURA GENERAL
    ========================================================= */

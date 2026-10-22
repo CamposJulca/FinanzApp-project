@@ -7,6 +7,7 @@ const MODULES = [
   { to: "/movimientos", label: "Movimientos" },
   { to: "/cuentas", label: "Cuentas" },
   { to: "/clasificacion", label: "Clasificación" },
+  { to: "/presupuesto", label: "Presupuesto" },
 ];
 
 const EMPTY_SUMMARY = {

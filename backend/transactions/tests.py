@@ -23,6 +23,8 @@ from transactions.views import _resolve_transactions, STRATEGY_UNCLASSIFY
 class LegacyTransactionPayloadTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("legacy")
+        self.household = Household.objects.create(name="Hogar legacy")
+        self.household.members.add(self.user)
         self.account = Account.objects.create(user=self.user, name="Cuenta")
         self.client = APIClient()
         self.client.force_login(self.user)
@@ -209,6 +211,8 @@ class TransferApiTests(TestCase):
         incoming = transfer.legs.get(account=self.to_account)
         self.assertEqual(outgoing.user, self.creator)
         self.assertEqual(incoming.user, self.recipient)
+        self.assertEqual(outgoing.household, self.household)
+        self.assertEqual(incoming.household, self.household)
         self.assertEqual(outgoing.amount, Decimal("-350.25"))
         self.assertEqual(incoming.amount, Decimal("350.25"))
         self.assertIsNone(outgoing.subcategory)
@@ -361,6 +365,7 @@ class TransferApiTests(TestCase):
     def test_summary_excludes_transfer_legs_from_income_and_expense(self):
         Transaction.objects.create(
             user=self.creator,
+            household=self.household,
             account=self.from_account,
             amount=Decimal("1000.00"),
             description="Ingreso real",
@@ -369,6 +374,7 @@ class TransferApiTests(TestCase):
         )
         Transaction.objects.create(
             user=self.creator,
+            household=self.household,
             account=self.from_account,
             amount=Decimal("-100.00"),
             description="Gasto real",

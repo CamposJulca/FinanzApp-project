@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import connection
+from django.db import IntegrityError, transaction as db_transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.db.models.deletion import ProtectedError
 from django.test import RequestFactory, TestCase, TransactionTestCase
@@ -12,6 +13,7 @@ from django.utils import timezone
 
 from .models import (
     Account,
+    Budget,
     Household,
     Transaction,
     TransactionCategory,
@@ -19,6 +21,45 @@ from .models import (
     TransactionType,
     Transfer,
 )
+
+
+class BudgetModelTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("budget-owner")
+        self.household = Household.objects.create(name="Hogar presupuesto")
+        self.household.members.add(self.user)
+        expense_type = TransactionType.objects.get(tipo="EGRESO", subtipo="FIJO")
+        income_type = TransactionType.objects.get(tipo="INGRESO", subtipo="FIJO")
+        self.expense = TransactionCategory.objects.create(type=expense_type, name="Tope")
+        self.income = TransactionCategory.objects.create(type=income_type, name="No tope")
+
+    def budget(self, **overrides):
+        values = {
+            "household": self.household,
+            "category": self.expense,
+            "amount": Decimal("1000.00"),
+            "valid_from": datetime(2026, 10, 1).date(),
+            "created_by": self.user,
+        }
+        values.update(overrides)
+        return Budget(**values)
+
+    def test_rejects_income_category(self):
+        with self.assertRaises(ValidationError):
+            self.budget(category=self.income).save()
+
+    def test_rejects_non_positive_amount_and_reversed_dates(self):
+        with self.assertRaises(ValidationError):
+            self.budget(amount=Decimal("0")).save()
+        with self.assertRaises(ValidationError):
+            self.budget(valid_to=datetime(2026, 9, 30).date()).save()
+
+    def test_database_rejects_overlapping_validity(self):
+        self.budget().save()
+        with self.assertRaises(IntegrityError), db_transaction.atomic():
+            Budget.objects.bulk_create([
+                self.budget(valid_from=datetime(2026, 10, 31).date())
+            ])
 
 
 class TransferModelTests(TestCase):
@@ -78,6 +119,7 @@ class TransferModelTests(TestCase):
         transfer.save()
         leg = Transaction.objects.create(
             user=self.owner_from,
+            household=self.household,
             account=self.from_account,
             transfer=transfer,
             amount=Decimal("-250.00"),
@@ -109,9 +151,11 @@ class FechaEfectivaMigrationTests(TransactionTestCase):
 
         UserModel = old_apps.get_model("auth", "User")
         AccountModel = old_apps.get_model("core", "Account")
+        HouseholdModel = old_apps.get_model("core", "Household")
         TransactionModel = old_apps.get_model("core", "Transaction")
 
         user = UserModel.objects.create(username="historico")
+        HouseholdModel.objects.create(name="Hogar histórico")
         account = AccountModel.objects.create(user=user, name="Histórica")
         TransactionModel.objects.create(
             user=user,
@@ -185,11 +229,13 @@ class PresupuestoFase1MigrationTests(TransactionTestCase):
 
         UserModel = old_apps.get_model("auth", "User")
         AccountModel = old_apps.get_model("core", "Account")
+        HouseholdModel = old_apps.get_model("core", "Household")
         TypeModel = old_apps.get_model("core", "TransactionType")
         CategoryModel = old_apps.get_model("core", "TransactionCategory")
         TransactionModel = old_apps.get_model("core", "Transaction")
 
         user = UserModel.objects.create(username="historico-fase1")
+        HouseholdModel.objects.create(name="Hogar histórico fase 1")
         account = AccountModel.objects.create(user=user, name="Histórica")
         TransactionModel.objects.create(
             user=user,
@@ -262,6 +308,8 @@ class PresupuestoFase1ModelTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("fase1-model")
         self.account = Account.objects.create(user=self.user, name="Cuenta")
+        self.household = Household.objects.create(name="Hogar fase 1")
+        self.household.members.add(self.user)
         self.type = TransactionType.objects.get(tipo="EGRESO", subtipo="FIJO")
         self.category = TransactionCategory.objects.create(type=self.type, name="VIVIENDA")
 
@@ -269,6 +317,7 @@ class PresupuestoFase1ModelTests(TestCase):
         values = {
             "user": self.user,
             "account": self.account,
+            "household": self.household,
             "amount": Decimal("-100.00"),
             "description": "Pago",
             "created_at": timezone.now(),
@@ -305,3 +354,46 @@ class PresupuestoFase1ModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             transaction.full_clean()
+
+
+class TransactionHouseholdMigrationTests(TransactionTestCase):
+    migrate_from = [("core", "0013_transaction_household_nullable")]
+    migrate_to = [("core", "0014_backfill_transaction_household")]
+
+    @property
+    def executor(self):
+        return MigrationExecutor(connection)
+
+    def setUp(self):
+        super().setUp()
+        executor = self.executor
+        executor.migrate(self.migrate_from)
+        apps = executor.loader.project_state(self.migrate_from).apps
+        UserModel = apps.get_model("auth", "User")
+        HouseholdModel = apps.get_model("core", "Household")
+        AccountModel = apps.get_model("core", "Account")
+        TransactionModel = apps.get_model("core", "Transaction")
+        user = UserModel.objects.create(username="backfill-264")
+        household = HouseholdModel.objects.create(name="Único")
+        account = AccountModel.objects.create(user=user, name="Histórica")
+        TransactionModel.objects.bulk_create([
+            TransactionModel(
+                user=user, account=account, amount=Decimal("-1.00"),
+                description=f"Histórico {number}", created_at=timezone.now(),
+                fecha_efectiva=datetime(2026, 10, 1).date(),
+            ) for number in range(264)
+        ])
+        executor = self.executor
+        executor.migrate(self.migrate_to)
+        self.apps = executor.loader.project_state(self.migrate_to).apps
+        self.household_id = household.pk
+
+    def tearDown(self):
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def test_all_264_transactions_receive_the_only_household(self):
+        TransactionModel = self.apps.get_model("core", "Transaction")
+        self.assertEqual(TransactionModel.objects.count(), 264)
+        self.assertEqual(TransactionModel.objects.filter(household_id=self.household_id).count(), 264)
+        self.assertFalse(TransactionModel.objects.filter(household__isnull=True).exists())
