@@ -21,7 +21,6 @@ db.sqlite3
 
 # Node
 node_modules/
-package-lock.json
 
 # Docker
 *.pid
