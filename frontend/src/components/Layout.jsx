@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import { fetchMe, fetchSummary, getCookie } from "../services/transactionsApi";
 
 const MODULES = [
@@ -70,10 +70,17 @@ export function Layout() {
         </div>
 
         <div className="header-side">
-          <div className={`status-chip ${conciliado ? "" : "warn"}`}>
+          {/* Antes era un <div> sin acción: parecía botón y no hacía nada.
+              Hasta que exista /conciliacion (fase 2B) lleva a Cuentas, que es
+              donde se declara el saldo real que se concilia. */}
+          <Link
+            to="/cuentas"
+            className={`status-chip status-link ${conciliado ? "" : "warn"}`}
+            title="Ver y actualizar los saldos reales de cada cuenta"
+          >
             <span className="status-dot" />
             <span>{conciliado ? "Sistema conciliado" : "Revisar conciliación"}</span>
-          </div>
+          </Link>
           {currentUser && (
             <p className="session-line">
               Sesión: <strong>{currentUser.username}</strong>

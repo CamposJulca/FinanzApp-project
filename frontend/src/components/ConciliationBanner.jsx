@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export function ConciliationBanner({ summary }) {
   const {
     saldo_contable,
@@ -31,6 +33,12 @@ export function ConciliationBanner({ summary }) {
           Diferencia detectada: <strong>${Number(diferencia).toLocaleString()}</strong>
         </p>
       )}
+
+      {/* El saldo real se declara cuenta por cuenta en el módulo Cuentas;
+          el contable no se edita: sale de los movimientos. */}
+      <Link to="/cuentas" className="conciliation-action">
+        Actualizar saldos reales →
+      </Link>
     </div>
   );
 }

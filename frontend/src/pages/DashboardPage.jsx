@@ -18,20 +18,22 @@ export function DashboardPage() {
 
       <div className="kpi-row">
         <KpiCard
-          title="Ingresos del período"
+          title="Ingresos acumulados"
           value={summary.ingresos}
           tone="income"
+          secondary="Histórico, todos los movimientos"
         />
         <KpiCard
-          title="Egresos del período"
+          title="Egresos acumulados"
           value={summary.egresos}
           tone="expense"
+          secondary="Histórico, todos los movimientos"
         />
         <KpiCard
-          title="Resultado del período"
+          title="Saldo contable histórico"
           value={summary.saldo_contable}
           tone="result"
-          secondary={`Transferencias netas: ${money(summary.neto_transferencias)}`}
+          secondary={`Incluye transferencias netas: ${money(summary.neto_transferencias)}`}
         />
       </div>
 

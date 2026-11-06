@@ -176,6 +176,29 @@
   color: var(--warning);
 }
 
+/* El chip ahora es un enlace: debe verse y comportarse como tal. */
+.status-chip.status-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* Sin esto, el `a:hover` global lo pinta de azul y lo subraya. */
+.status-chip.status-link:hover {
+  filter: brightness(0.96);
+  color: var(--success);
+  text-decoration: none;
+}
+
+.status-chip.status-link.warn:hover {
+  color: var(--warning);
+}
+
+.status-chip.status-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -368,6 +391,20 @@
   font-size: 1.05rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+}
+
+.conciliation-action {
+  grid-column: 1 / -1;
+  justify-self: start;
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.conciliation-action:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
 .difference-alert {
